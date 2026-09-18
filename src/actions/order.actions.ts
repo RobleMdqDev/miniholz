@@ -12,6 +12,7 @@ import {
 } from "@/lib/validations/checkout";
 import { serializeShippingAddress } from "@/lib/orders";
 import { isMercadoPagoEnabled } from "@/lib/mercadopago";
+import { recordOrderEvent } from "@/lib/order-events";
 
 export type CreateOrderResult =
   | { ok: true; orderId: string; orderNumber: number; paymentMethod: CheckoutPaymentMethod }
@@ -81,7 +82,7 @@ export async function createOrder(
         const last = await tx.order.aggregate({ _max: { orderNumber: true } });
         const orderNumber = (last._max.orderNumber ?? 0) + 1;
 
-        return tx.order.create({
+        const created = await tx.order.create({
           data: {
             orderNumber,
             userId: session?.user.id ?? null,
@@ -109,6 +110,17 @@ export async function createOrder(
           },
           select: { id: true, orderNumber: true },
         });
+
+        await recordOrderEvent(tx, {
+          orderId: created.id,
+          type: "CREATED",
+          actor: "system",
+          status: { to: "PENDING_PAYMENT" },
+          paymentStatus: { to: "PENDING" },
+          detail: `Checkout: ${paymentMethod}`,
+        });
+
+        return created;
       });
 
       if (session) {

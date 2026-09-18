@@ -38,6 +38,16 @@ enum PaymentStatus {
   REFUNDED
 }
 
+/// Causa de un asiento de auditoría. El tipo dice *por qué* cambió el pedido;
+/// las columnas `from*`/`to*` dicen *qué* se movió.
+enum OrderEventType {
+  CREATED
+  PAYMENT_SYNCED // resultado de consultar el pago contra la API de Mercado Pago
+  STATUS_CHANGED // el admin movió el estado a mano
+  CANCELLED_WITH_RESTOCK
+  SHIPPING_COST_SET
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -177,6 +187,7 @@ model Order {
   shippingAddress String // snapshot JSON, no FK a Address (que el cliente puede editar después)
 
   items        OrderItem[]
+  events       OrderEvent[]
   subtotal     Int
   /// Siempre 0 al crear la orden: el envío se cotiza y se cobra aparte, y el
   /// admin lo completa acá cuando lo acuerda con el cliente.
@@ -217,6 +228,45 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productVariantId])
+}
+
+/// Bitácora de auditoría de un pedido: solo se escribe cuando algo cambió de
+/// verdad, nunca una fila por notificación recibida. Mercado Pago manda varios
+/// avisos por pago (más reintentos) y la sincronización es idempotente, así que
+/// registrar recepciones en vez de transiciones multiplicaría las filas sin
+/// agregar información.
+model OrderEvent {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  type OrderEventType
+
+  // Nulos cuando ese eje no se movió: un cambio de envío no toca los estados.
+  fromStatus        OrderStatus?
+  toStatus          OrderStatus?
+  fromPaymentStatus PaymentStatus?
+  toPaymentStatus   PaymentStatus?
+
+  /// Quién lo provocó: "webhook", "return", "system" o "admin:<userId>".
+  /// Es lo que permite distinguir un pago acreditado por Mercado Pago de uno
+  /// que un admin marcó a mano, que en `Order` quedan idénticos.
+  actor String
+
+  /// Pago de Mercado Pago que originó el cambio. Se guarda el id y no el cuerpo
+  /// de la notificación: MP es la fuente de verdad y el pago se puede volver a
+  /// consultar, mientras que el payload completo multiplicaría el tamaño de la
+  /// fila por datos que ya viven en otro lado.
+  mpPaymentId String?
+
+  /// Detalle corto y legible por una persona. No es un volcado de datos.
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  // Única consulta real: la línea de tiempo de un pedido. Un índice más cuesta
+  // escritura y espacio sin que nadie lo use.
+  @@index([orderId, createdAt])
 }
 
 /// Fila única (id = 1) con la configuración editable desde /admin/configuracion.

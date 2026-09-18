@@ -1,6 +1,7 @@
 import type { OrderStatus, PaymentStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { parseShippingAddress } from "@/lib/orders";
+import { recordOrderEvent, type OrderEventActor } from "@/lib/order-events";
 import {
   createOrderPreference,
   getMercadoPagoPayment,
@@ -117,13 +118,22 @@ export type PaymentSyncResult =
  */
 export async function syncMercadoPagoPayment(
   paymentId: string | number,
+  /** De dónde vino el aviso. Solo se usa para la bitácora. */
+  actor: Extract<OrderEventActor, "webhook" | "return"> = "webhook",
 ): Promise<PaymentSyncResult> {
   const payment = await getMercadoPagoPayment(paymentId);
   if (!payment?.orderId) return { ok: false, reason: "payment_not_found" };
 
   const order = await prisma.order.findUnique({
     where: { id: payment.orderId },
-    select: { id: true, orderNumber: true, status: true, paymentStatus: true, paymentMethod: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      paymentStatus: true,
+      paymentMethod: true,
+      mpPaymentId: true,
+    },
   });
   if (!order) return { ok: false, reason: "order_not_found" };
   if (order.paymentMethod !== "MERCADOPAGO") return { ok: false, reason: "wrong_method" };
@@ -153,10 +163,35 @@ export async function syncMercadoPagoPayment(
     // El pedido pasa a PAID solo si seguía esperando el pago: si el admin ya lo
     // movió a "en preparación" o "enviado", una notificación repetida no lo
     // hace retroceder.
+    let promotedToPaid = false;
     if (paymentStatus === "APPROVED") {
-      await tx.order.updateMany({
+      const promoted = await tx.order.updateMany({
         where: { id: order.id, status: "PENDING_PAYMENT" },
         data: { status: "PAID" },
+      });
+      promotedToPaid = promoted.count > 0;
+    }
+
+    // Acá se decide si el aviso merece un asiento. Mercado Pago avisa varias
+    // veces por el mismo pago, y los reintentos de Checkout Pro generan pagos
+    // distintos sobre el mismo pedido: un pago nuevo se registra aunque caiga en
+    // el mismo estado, porque es justo lo que `Order.mpPaymentId` pierde al
+    // quedarse solo con el último intento.
+    const paymentStatusChanged = paymentStatus !== order.paymentStatus;
+    const isNewAttempt = payment.id !== order.mpPaymentId;
+    if (paymentStatusChanged || isNewAttempt || promotedToPaid) {
+      await recordOrderEvent(tx, {
+        orderId: order.id,
+        type: "PAYMENT_SYNCED",
+        actor,
+        mpPaymentId: payment.id,
+        ...(paymentStatusChanged
+          ? { paymentStatus: { from: order.paymentStatus, to: paymentStatus } }
+          : {}),
+        ...(promotedToPaid ? { status: { from: order.status, to: "PAID" as const } } : {}),
+        detail: payment.statusDetail
+          ? `Mercado Pago: ${payment.status} (${payment.statusDetail})`
+          : `Mercado Pago: ${payment.status}`,
       });
     }
   });

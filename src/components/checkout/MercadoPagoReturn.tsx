@@ -78,7 +78,7 @@ export async function MercadoPagoReturn({
 
   if (paymentId && paymentId !== "null") {
     try {
-      const synced = await syncMercadoPagoPayment(paymentId);
+      const synced = await syncMercadoPagoPayment(paymentId, "return");
       if (synced.ok) {
         orderId = synced.orderId;
         kind = resultKindFor(synced.paymentStatus);
