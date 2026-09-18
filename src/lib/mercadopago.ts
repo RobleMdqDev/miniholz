@@ -1,6 +1,7 @@
 import {
   InvalidWebhookSignatureError,
   MercadoPagoConfig,
+  MPNotFoundError,
   Payment,
   Preference,
   WebhookSignatureValidator,
@@ -146,10 +147,22 @@ export type MercadoPagoPayment = {
   orderId: string | null;
 };
 
+/**
+ * Devuelve `null` cuando el pago no existe. Esa distinción importa: el webhook
+ * traduce el `null` a un `200` (no hay nada que reintentar), mientras que una
+ * excepción se convierte en un `500` que le pide a MP que reintente durante
+ * días. El simulador de notificaciones del panel manda ids inventados.
+ */
 export async function getMercadoPagoPayment(
   paymentId: string | number,
 ): Promise<MercadoPagoPayment | null> {
-  const payment = await new Payment(client()).get({ id: paymentId });
+  let payment;
+  try {
+    payment = await new Payment(client()).get({ id: paymentId });
+  } catch (error) {
+    if (error instanceof MPNotFoundError) return null;
+    throw error;
+  }
   if (!payment?.id || !payment.status) return null;
 
   return {

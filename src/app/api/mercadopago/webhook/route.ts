@@ -37,17 +37,27 @@ export async function POST(request: NextRequest) {
   const dataId =
     searchParams.get("data.id") ?? searchParams.get("id") ?? stringOrNull(body.data?.id);
 
+  const topic = body.type ?? body.topic ?? searchParams.get("type") ?? searchParams.get("topic");
+
   const signature = verifyWebhookSignature({
     signature: request.headers.get("x-signature"),
     requestId: request.headers.get("x-request-id"),
     dataId,
   });
   if (!signature.ok) {
-    console.warn(`[mercadopago] notificación rechazada por firma inválida: ${signature.reason}`);
+    // El motivo solo no alcanza para diagnosticar: un `SignatureMismatch` puede
+    // ser un secret equivocado o un formato de notificación cuyo id no va en el
+    // manifiesto (las IPN mandan `topic`+`id` en vez de `data.id`). Se registra
+    // de dónde salió cada dato, nunca el secret ni la firma recibida.
+    console.warn(
+      `[mercadopago] notificación rechazada por firma inválida: ${signature.reason}` +
+        ` | topic=${topic ?? "(ninguno)"}` +
+        ` dataId=${dataId ?? "(ninguno)"}` +
+        ` query=[${[...searchParams.keys()].join(",") || "vacía"}]` +
+        ` x-request-id=${request.headers.get("x-request-id") ? "presente" : "ausente"}`,
+    );
     return Response.json({ error: "Firma inválida." }, { status: 401 });
   }
-
-  const topic = body.type ?? body.topic ?? searchParams.get("type") ?? searchParams.get("topic");
   if (topic !== "payment") {
     // `merchant_order`, `plan`, `subscription`… no se usan en esta tienda.
     return Response.json({ ignored: topic ?? "unknown" });
