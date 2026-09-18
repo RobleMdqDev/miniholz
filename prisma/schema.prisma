@@ -1,0 +1,228 @@
+// Esquema de datos de MiniHolz.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT // orden creada, esperando pago/confirmación
+  PAID // pago acreditado (MP o transferencia confirmada por el admin)
+  PROCESSING // en preparación
+  SHIPPED
+  DELIVERED
+  CANCELLED // pago rechazado / expirado / cancelado manualmente
+}
+
+enum PaymentMethod {
+  MERCADOPAGO
+  TRANSFER
+  WHATSAPP
+}
+
+enum PaymentStatus {
+  PENDING
+  IN_PROCESS
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  phone        String?
+  role         Role      @default(CUSTOMER)
+  addresses    Address[]
+  orders       Order[]
+  cart         Cart?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName   String
+  phone      String
+  street     String
+  number     String
+  city       String
+  province   String
+  postalCode String
+  isDefault  Boolean @default(false)
+
+  @@index([userId])
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  slug     String    @unique
+  position Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id             String    @id @default(cuid())
+  name           String
+  slug           String    @unique
+  description    String
+  basePrice      Int // en centavos, para no usar floats
+  compareAtPrice Int? // precio "tachado" antes del descuento
+  isActive       Boolean   @default(true)
+  categoryId     String?
+  category       Category? @relation(fields: [categoryId], references: [id])
+
+  // Personalización (grabado de nombre, etc.). Si personalizationLabel es null,
+  // el producto no se personaliza.
+  personalizationLabel     String? // ej: "Nombre a grabar"
+  personalizationMaxLength Int?
+  personalizationRequired  Boolean @default(false)
+
+  images    ProductImage[]
+  variants  ProductVariant[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  position  Int     @default(0)
+
+  @@index([productId])
+}
+
+/// Todo item de carrito/orden apunta siempre a una variante, incluso cuando el
+/// producto no ofrece opciones: en ese caso tiene una sola variante (llamada
+/// "Único") y el storefront no muestra el selector. Así el stock vive en un
+/// solo lugar y el carrito/checkout no bifurca la lógica.
+/// `name` es obligatorio a propósito: en SQLite dos NULL no colisionan, así que
+/// con un nombre nullable el índice `@@unique([productId, name])` dejaría crear
+/// variantes default duplicadas y no se podría hacer upsert por ese índice.
+model ProductVariant {
+  id            String      @id @default(cuid())
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name          String  @default("Único") // ej: "Natural", "Rosa viejo", "50 cm"
+  sku           String?     @unique
+  priceOverride Int? // si es null, usa Product.basePrice
+  stock         Int         @default(0)
+  position      Int         @default(0)
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+
+  @@unique([productId, name])
+  @@index([productId])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id               String         @id @default(cuid())
+  cartId           String
+  cart             Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productVariantId String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  quantity         Int
+
+  /// Texto a grabar. Vacío = sin personalizar. No es nullable para que la
+  /// unicidad de abajo funcione (en SQLite dos NULL no colisionan).
+  personalizationText String @default("")
+
+  @@unique([cartId, productVariantId, personalizationText])
+  @@index([cartId])
+  @@index([productVariantId])
+}
+
+model Order {
+  id          String  @id @default(cuid())
+  /// Número visible para el cliente. SQLite no admite autoincrement fuera del
+  /// @id, así que lo asigna `createOrder` (max + 1) dentro de la misma
+  /// transacción que descuenta stock.
+  orderNumber Int     @unique
+  userId      String?
+  user        User?   @relation(fields: [userId], references: [id])
+
+  // Checkout como invitado: si no hay userId, estos campos identifican al comprador.
+  guestEmail String?
+  guestName  String?
+  guestPhone String?
+
+  shippingAddress String // snapshot JSON, no FK a Address (que el cliente puede editar después)
+
+  items        OrderItem[]
+  subtotal     Int
+  /// Siempre 0 al crear la orden: el envío se cotiza y se cobra aparte, y el
+  /// admin lo completa acá cuando lo acuerda con el cliente.
+  shippingCost Int         @default(0)
+  total        Int
+
+  status        OrderStatus   @default(PENDING_PAYMENT)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+
+  mpPreferenceId     String?
+  mpPaymentId        String?
+  transferReceiptUrl String?
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id               String         @id @default(cuid())
+  orderId          String
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productVariantId String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  // Snapshots al momento de la compra: el producto puede cambiar o borrarse después.
+  productName         String
+  variantName         String?
+  personalizationText String  @default("")
+
+  unitPrice Int
+  quantity  Int
+  subtotal  Int
+
+  @@index([orderId])
+  @@index([productVariantId])
+}
+
+/// Fila única (id = 1) con la configuración editable desde /admin/configuracion.
+model StoreSettings {
+  id               Int     @id @default(1)
+  whatsappNumber   String
+  bankAccountInfo  String // texto libre: CBU/alias/titular/banco
+  announcementText String?
+}

@@ -1,0 +1,231 @@
+import {
+  InvalidWebhookSignatureError,
+  MercadoPagoConfig,
+  Payment,
+  Preference,
+  WebhookSignatureValidator,
+} from "mercadopago";
+import type { PaymentStatus } from "@/generated/prisma/enums";
+
+/**
+ * Capa fina sobre la API de Mercado Pago (Checkout Pro). Acá no se toca la
+ * base: la sincronización de un pago con su pedido vive en
+ * `mercadopago-orders.ts`, para que este archivo se pueda leer (y probar)
+ * como lo que es, un cliente HTTP.
+ */
+
+/** Ventana de tolerancia del timestamp de la firma; acota los replays. */
+const SIGNATURE_TOLERANCE_SECONDS = 300;
+
+export function isMercadoPagoEnabled(): boolean {
+  return Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN);
+}
+
+function accessToken(): string {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error("Falta MERCADOPAGO_ACCESS_TOKEN: el pago con tarjeta está sin configurar.");
+  }
+  return token;
+}
+
+/** El cliente se arma por llamada: es un objeto de configuración, no un pool. */
+function client(): MercadoPagoConfig {
+  return new MercadoPagoConfig({
+    accessToken: accessToken(),
+    options: { timeout: 10_000 },
+  });
+}
+
+export function getBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
+}
+
+/**
+ * Mercado Pago rechaza `notification_url` y `auto_return` cuando apuntan a una
+ * URL que no puede alcanzar. En desarrollo la base es `localhost`, así que esos
+ * dos campos se omiten y el pago se sincroniza al volver de MP (ver
+ * `syncMercadoPagoPayment`), que es lo que permite probar sin túnel.
+ */
+export function isPubliclyReachable(): boolean {
+  try {
+    const { hostname } = new URL(getBaseUrl());
+    return hostname !== "localhost" && hostname !== "127.0.0.1" && hostname !== "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+/** MP trabaja en unidades de moneda; la base guarda centavos. */
+function toAmount(cents: number): number {
+  return Number((cents / 100).toFixed(2));
+}
+
+export type PreferenceOrder = {
+  id: string;
+  orderNumber: number;
+  shippingCost: number;
+  items: {
+    id: string;
+    productName: string;
+    variantName: string | null;
+    personalizationText: string;
+    unitPrice: number;
+    quantity: number;
+  }[];
+  payer: { name: string; email: string; phone: string };
+};
+
+export type CheckoutPreference = { preferenceId: string; initPoint: string };
+
+export async function createOrderPreference(order: PreferenceOrder): Promise<CheckoutPreference> {
+  const baseUrl = getBaseUrl();
+  const publicUrls = isPubliclyReachable();
+
+  const response = await new Preference(client()).create({
+    body: {
+      items: order.items.map((item) => ({
+        id: item.id,
+        title: [item.productName, item.variantName].filter(Boolean).join(" · "),
+        description: item.personalizationText
+          ? `Grabado: ${item.personalizationText}`
+          : undefined,
+        quantity: item.quantity,
+        currency_id: "ARS",
+        unit_price: toAmount(item.unitPrice),
+      })),
+      // El envío se cotiza después de la compra: solo viaja si el admin ya lo
+      // cargó en el pedido (caso de un pago retomado más tarde).
+      ...(order.shippingCost > 0
+        ? { shipments: { cost: toAmount(order.shippingCost), mode: "not_specified" } }
+        : {}),
+      payer: {
+        name: order.payer.name,
+        email: order.payer.email,
+        phone: { number: order.payer.phone },
+      },
+      // La referencia externa es lo que ata el pago al pedido en el webhook.
+      external_reference: order.id,
+      metadata: { order_id: order.id, order_number: order.orderNumber },
+      statement_descriptor: "MINIHOLZ",
+      back_urls: {
+        success: `${baseUrl}/checkout/exito`,
+        pending: `${baseUrl}/checkout/pendiente`,
+        failure: `${baseUrl}/checkout/fallo`,
+      },
+      ...(publicUrls
+        ? {
+            auto_return: "approved",
+            notification_url: `${baseUrl}/api/mercadopago/webhook`,
+          }
+        : {}),
+    },
+    // Reintentar el alta del pedido no debe generar dos preferencias. El total
+    // entra en la clave para que un envío cargado después sí arme una nueva.
+    requestOptions: { idempotencyKey: `order-${order.id}-${order.shippingCost}` },
+  });
+
+  const preferenceId = response.id;
+  const initPoint = response.init_point;
+  if (!preferenceId || !initPoint) {
+    throw new Error("Mercado Pago no devolvió el link de pago.");
+  }
+
+  return { preferenceId, initPoint };
+}
+
+export async function getPreferenceInitPoint(preferenceId: string): Promise<string | null> {
+  const response = await new Preference(client()).get({ preferenceId });
+  return response.init_point ?? null;
+}
+
+export type MercadoPagoPayment = {
+  id: string;
+  status: string;
+  statusDetail: string | null;
+  orderId: string | null;
+};
+
+export async function getMercadoPagoPayment(
+  paymentId: string | number,
+): Promise<MercadoPagoPayment | null> {
+  const payment = await new Payment(client()).get({ id: paymentId });
+  if (!payment?.id || !payment.status) return null;
+
+  return {
+    id: String(payment.id),
+    status: payment.status,
+    statusDetail: payment.status_detail ?? null,
+    orderId: payment.external_reference ?? null,
+  };
+}
+
+/**
+ * Traduce el estado de Mercado Pago al enum propio. `authorized` (importe
+ * retenido pero no capturado) se trata como en proceso: la plata todavía no
+ * está acreditada.
+ */
+export function mapPaymentStatus(mpStatus: string): PaymentStatus {
+  switch (mpStatus) {
+    case "approved":
+      return "APPROVED";
+    case "pending":
+    case "in_process":
+    case "authorized":
+      return "IN_PROCESS";
+    case "rejected":
+    case "cancelled":
+      return "REJECTED";
+    case "refunded":
+    case "charged_back":
+      return "REFUNDED";
+    default:
+      return "PENDING";
+  }
+}
+
+export type WebhookSignatureCheck =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+/**
+ * Valida la firma `x-signature` de una notificación. El validador del SDK
+ * recalcula el HMAC-SHA256 y compara en tiempo constante.
+ *
+ * Sin `MERCADOPAGO_WEBHOOK_SECRET` no hay forma de distinguir una notificación
+ * real de una inventada, así que en producción se rechaza. En desarrollo se
+ * deja pasar con una advertencia para poder probar el webhook con `curl`.
+ */
+export function verifyWebhookSignature(input: {
+  signature: string | null;
+  requestId: string | null;
+  dataId: string | null;
+}): WebhookSignatureCheck {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      return { ok: false, reason: "MissingWebhookSecret" };
+    }
+    console.warn(
+      "[mercadopago] MERCADOPAGO_WEBHOOK_SECRET sin configurar: la firma del webhook no se valida.",
+    );
+    return { ok: true };
+  }
+
+  try {
+    WebhookSignatureValidator.validate({
+      xSignature: input.signature,
+      xRequestId: input.requestId,
+      dataId: input.dataId,
+      secret,
+      toleranceSeconds: SIGNATURE_TOLERANCE_SECONDS,
+    });
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof InvalidWebhookSignatureError) {
+      return { ok: false, reason: error.reason };
+    }
+    throw error;
+  }
+}

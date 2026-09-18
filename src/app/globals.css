@@ -1,26 +1,130 @@
 @import "tailwindcss";
 
+/*
+ * Paleta tomada del logo (public/images/logo.png):
+ *   dorado del trazo  #ad9131  -> gold-600
+ *   crema del círculo #fcf9f1  -> brand-100
+ *   rosa del corazón  #deb19e  -> accent-300
+ *
+ * Los tonos de texto y de botón se eligieron para pasar 4.5:1 de contraste:
+ * por eso el botón primario usa gold-700 y no el gold-600 exacto del logo,
+ * que sobre blanco queda en 3.06:1.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fdfcf7;
+  --foreground: #332d24;
+
+  /* brand: neutro cálido del crema del logo (fondos, texto, bordes) */
+  --color-brand-50: #fdfcf7;
+  --color-brand-100: #fcf9f1;
+  --color-brand-200: #f0eadc;
+  --color-brand-300: #ddd3bf;
+  --color-brand-400: #b9ab90;
+  --color-brand-500: #8d7f66;
+  --color-brand-600: #70634d;
+  --color-brand-700: #5a4f3e;
+  --color-brand-800: #443c30;
+  --color-brand-900: #332d24;
+
+  /* gold: el dorado mostaza del logo (botones, badges, detalles) */
+  --color-gold-50: #fdfbf2;
+  --color-gold-100: #f9f2d9;
+  --color-gold-200: #f0e3b0;
+  --color-gold-300: #e3cf82;
+  --color-gold-400: #d0b558;
+  --color-gold-500: #bfa040;
+  --color-gold-600: #ad9131;
+  --color-gold-700: #8c7428;
+  --color-gold-800: #705c22;
+  --color-gold-900: #5c4b1f;
+
+  /* accent: el rosa palo del corazón (footer, precios destacados, badges) */
+  --color-accent-50: #fdf7f3;
+  --color-accent-100: #fbeade;
+  --color-accent-200: #f2d5c5;
+  --color-accent-300: #deb19e;
+  --color-accent-400: #cd9780;
+  --color-accent-500: #b87d64;
+  --color-accent-600: #9e6650;
+  --color-accent-700: #805243;
+  --color-accent-800: #674338;
+  --color-accent-900: #55382f;
+
+  /* danger: terracota para errores y acciones destructivas.
+     Existe aparte de accent para que un error no se confunda con el rosa de marca. */
+  --color-danger-50: #fdf3f1;
+  --color-danger-100: #fbe3de;
+  --color-danger-200: #f5c6bc;
+  --color-danger-300: #eb9e8e;
+  --color-danger-400: #dc7461;
+  --color-danger-500: #c75440;
+  --color-danger-600: #ad3f2d;
+  --color-danger-700: #8c3325;
+  --color-danger-800: #712b20;
+  --color-danger-900: #5d261d;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: var(--font-montserrat);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-brand-50: var(--color-brand-50);
+  --color-brand-100: var(--color-brand-100);
+  --color-brand-200: var(--color-brand-200);
+  --color-brand-300: var(--color-brand-300);
+  --color-brand-400: var(--color-brand-400);
+  --color-brand-500: var(--color-brand-500);
+  --color-brand-600: var(--color-brand-600);
+  --color-brand-700: var(--color-brand-700);
+  --color-brand-800: var(--color-brand-800);
+  --color-brand-900: var(--color-brand-900);
+
+  --color-gold-50: var(--color-gold-50);
+  --color-gold-100: var(--color-gold-100);
+  --color-gold-200: var(--color-gold-200);
+  --color-gold-300: var(--color-gold-300);
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-600: var(--color-gold-600);
+  --color-gold-700: var(--color-gold-700);
+  --color-gold-800: var(--color-gold-800);
+  --color-gold-900: var(--color-gold-900);
+
+  --color-accent-50: var(--color-accent-50);
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-200: var(--color-accent-200);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-800: var(--color-accent-800);
+  --color-accent-900: var(--color-accent-900);
+
+  --color-danger-50: var(--color-danger-50);
+  --color-danger-100: var(--color-danger-100);
+  --color-danger-200: var(--color-danger-200);
+  --color-danger-300: var(--color-danger-300);
+  --color-danger-400: var(--color-danger-400);
+  --color-danger-500: var(--color-danger-500);
+  --color-danger-600: var(--color-danger-600);
+  --color-danger-700: var(--color-danger-700);
+  --color-danger-800: var(--color-danger-800);
+  --color-danger-900: var(--color-danger-900);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Scroll horizontal sin barra visible: se usa en las tiras de navegación del
+   panel, donde el gesto es deslizar y la barra solo agrega ruido. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
