@@ -32,17 +32,26 @@ export async function POST(request: NextRequest) {
     // Algunas notificaciones viejas (IPN) llegan sin cuerpo, solo con query.
   }
 
-  // La firma se calcula sobre el `data.id` de la query string, que es donde MP
-  // lo manda; el cuerpo es el respaldo para el formato IPN.
-  const dataId =
-    searchParams.get("data.id") ?? searchParams.get("id") ?? stringOrNull(body.data?.id);
+  // La firma se calcula **solo** sobre el `data.id` de la query string. Cuando
+  // no viene —las IPN mandan `topic` + `id`— Mercado Pago lo omite del
+  // manifiesto, así que acá hay que pasar `null` para que el SDK lo omita
+  // también. Meter el `id` de la query en su lugar hacía fallar la firma de
+  // toda notificación que no fuera un webhook moderno.
+  //
+  // El ejemplo sin SDK de la documentación además pasa el id a minúsculas, pero
+  // el SDK oficial no lo hace: se sigue al SDK, y para el único tópico que se
+  // procesa (`payment`) el id es numérico, así que no hay diferencia.
+  const signatureDataId = searchParams.get("data.id");
+
+  // Para *buscar* el pago, en cambio, sirve cualquiera de las tres fuentes.
+  const dataId = signatureDataId ?? searchParams.get("id") ?? stringOrNull(body.data?.id);
 
   const topic = body.type ?? body.topic ?? searchParams.get("type") ?? searchParams.get("topic");
 
   const signature = verifyWebhookSignature({
     signature: request.headers.get("x-signature"),
     requestId: request.headers.get("x-request-id"),
-    dataId,
+    dataId: signatureDataId,
   });
   if (!signature.ok) {
     // El motivo solo no alcanza para diagnosticar: un `SignatureMismatch` puede
@@ -52,6 +61,7 @@ export async function POST(request: NextRequest) {
     console.warn(
       `[mercadopago] notificación rechazada por firma inválida: ${signature.reason}` +
         ` | topic=${topic ?? "(ninguno)"}` +
+        ` data.id=${signatureDataId ?? "(ausente)"}` +
         ` dataId=${dataId ?? "(ninguno)"}` +
         ` query=[${[...searchParams.keys()].join(",") || "vacía"}]` +
         ` x-request-id=${request.headers.get("x-request-id") ? "presente" : "ausente"}`,

@@ -138,6 +138,24 @@ Entonces `rejected` y `cancelled` solo marcan `paymentStatus = REJECTED`, y el p
 - El aviso tardío de un intento fallido **no puede bajar** un pedido ya acreditado. Si `paymentStatus` es `APPROVED`, solo lo cambia una devolución.
 - `refunded` y `charged_back` marcan `REFUNDED` pero **no** cambian el estado del pedido ni reponen stock: una devolución sobre un pedido ya entregado la resuelve el admin.
 
+### La firma se calcula solo sobre `data.id`
+
+El manifiesto que se firma es `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`, y
+Mercado Pago **omite** los campos que no vinieron en la notificación. El formato
+IPN viejo manda `?topic=merchant_order&id=123` — sin `data.id` —, así que MP firma
+sin el `id`.
+
+Por eso `signatureDataId` sale únicamente de `data.id` y se pasa `null` cuando no
+está: el SDK omite el campo y la firma coincide. Usar el `id` de la query como
+respaldo (que es lo que se hacía antes) rechazaba con `401` toda notificación que
+no fuera un webhook moderno, y MP las reintenta durante días.
+
+Para *buscar* el pago sí se usan las tres fuentes: `data.id`, `id` y el cuerpo.
+
+> El ejemplo sin SDK de la documentación pasa el id a minúsculas; el SDK oficial
+> no. Se sigue al SDK. Para `payment`, el único tópico que se procesa, el id es
+> numérico y da lo mismo.
+
 ### Códigos de respuesta del webhook
 
 | Situación | Respuesta | Por qué |
@@ -151,6 +169,10 @@ Entonces `rejected` y `cancelled` solo marcan `paymentStatus = REJECTED`, y el p
 
 - La preferencia se crea **desde el server component**, no desde una API route: no hace falta un fetch del cliente. Por eso no existe `/api/mercadopago/preference`.
 - `getOrderCheckoutUrl()` reutiliza la preferencia guardada en `Order.mpPreferenceId` y solo crea una nueva si MP ya no la reconoce (pasa al cambiar credenciales de test por las de producción).
+- Cada sincronización que **cambia algo** deja un asiento en `OrderEvent` (ver
+  `src/lib/order-events.ts`), con el actor `webhook` o `return` según de dónde
+  vino. Los avisos que no mueven nada no escriben: MP notifica varias veces por
+  pago y la sincronización es idempotente.
 - El **descuento por transferencia no aplica** a Mercado Pago: se cobra el total.
 - El **envío no va en la preferencia** salvo que el admin ya lo haya cargado (caso de un pago retomado más tarde). Se cotiza después de la compra.
 
