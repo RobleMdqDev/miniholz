@@ -125,6 +125,13 @@ export type PaymentSyncResult =
  * Se llama desde el webhook y también desde las páginas de retorno, porque en
  * desarrollo MP no puede alcanzar `localhost` y el webhook nunca llega.
  */
+/** Lo que se lee del pedido con la fila ya bloqueada. */
+type LockedOrder = {
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  mpPaymentId: string | null;
+};
+
 export async function syncMercadoPagoPayment(
   paymentId: string | number,
   /** De dónde vino el aviso. Solo se usa para la bitácora. */
@@ -135,35 +142,59 @@ export async function syncMercadoPagoPayment(
 
   const order = await prisma.order.findUnique({
     where: { id: payment.orderId },
-    select: {
-      id: true,
-      orderNumber: true,
-      status: true,
-      paymentStatus: true,
-      paymentMethod: true,
-      mpPaymentId: true,
-    },
+    select: { id: true, orderNumber: true, paymentMethod: true },
   });
   if (!order) return { ok: false, reason: "order_not_found" };
   if (order.paymentMethod !== "MERCADOPAGO") return { ok: false, reason: "wrong_method" };
 
   const paymentStatus = mapPaymentStatus(payment.status);
+  const detail = payment.statusDetail
+    ? `Mercado Pago: ${payment.status} (${payment.statusDetail})`
+    : `Mercado Pago: ${payment.status}`;
 
-  // Checkout Pro deja reintentar tras un rechazo, así que sobre un mismo pedido
-  // conviven varios pagos. Si ya hay uno acreditado, el aviso tardío de otro
-  // intento fallido no puede pisarlo (solo una devolución cambia ese estado).
-  const alreadyApproved = order.paymentStatus === "APPROVED";
-  if (alreadyApproved && paymentStatus !== "APPROVED" && paymentStatus !== "REFUNDED") {
-    return {
-      ok: true,
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      paymentStatus: order.paymentStatus,
-      orderStatus: order.status,
-    };
-  }
+  const applied = await prisma.$transaction(async (tx) => {
+    // El estado del pedido se lee acá adentro y con la fila bloqueada. La
+    // vuelta del checkout y el webhook sincronizan el mismo pago a la vez —en
+    // producción llegaron con seis segundos de diferencia—, y leyendo afuera
+    // ambos verían el estado previo y asentarían el mismo evento dos veces.
+    const rows = await tx.$queryRaw<LockedOrder[]>`
+      SELECT "status", "paymentStatus", "mpPaymentId"
+      FROM "Order" WHERE "id" = ${order.id} FOR UPDATE
+    `;
+    const current = rows[0];
+    if (!current) return null;
 
-  await prisma.$transaction(async (tx) => {
+    // Checkout Pro deja reintentar tras un rechazo, así que sobre un mismo
+    // pedido conviven varios pagos. Si ya hay uno acreditado, el aviso tardío
+    // de otro intento fallido no puede pisarlo: solo una devolución cambia ese
+    // estado.
+    const keepsApproved =
+      current.paymentStatus === "APPROVED" &&
+      paymentStatus !== "APPROVED" &&
+      paymentStatus !== "REFUNDED";
+
+    if (keepsApproved) {
+      // El pedido no se toca, pero el intento sí se asienta: es la única traza
+      // de que ese pago existió, y es justo lo que se va a buscar ante un
+      // reclamo por un cargo duplicado. Se busca por `mpPaymentId` porque acá
+      // no se actualiza el del pedido, así que no hay estado contra el cual
+      // comparar para evitar que los reintentos de MP dupliquen la fila.
+      const yaAsentado = await tx.orderEvent.findFirst({
+        where: { orderId: order.id, mpPaymentId: payment.id },
+        select: { id: true },
+      });
+      if (!yaAsentado) {
+        await recordOrderEvent(tx, {
+          orderId: order.id,
+          type: "PAYMENT_SYNCED",
+          actor,
+          mpPaymentId: payment.id,
+          detail: `${detail} · intento posterior a la acreditación, no modifica el pedido`,
+        });
+      }
+      return { status: current.status, paymentStatus: current.paymentStatus };
+    }
+
     await tx.order.update({
       where: { id: order.id },
       data: { paymentStatus, mpPaymentId: payment.id },
@@ -182,12 +213,11 @@ export async function syncMercadoPagoPayment(
     }
 
     // Acá se decide si el aviso merece un asiento. Mercado Pago avisa varias
-    // veces por el mismo pago, y los reintentos de Checkout Pro generan pagos
-    // distintos sobre el mismo pedido: un pago nuevo se registra aunque caiga en
-    // el mismo estado, porque es justo lo que `Order.mpPaymentId` pierde al
-    // quedarse solo con el último intento.
-    const paymentStatusChanged = paymentStatus !== order.paymentStatus;
-    const isNewAttempt = payment.id !== order.mpPaymentId;
+    // veces por el mismo pago: un aviso que no movió nada no escribe. Un pago
+    // distinto sí, aunque caiga en el mismo estado, porque es lo que
+    // `Order.mpPaymentId` pierde al quedarse solo con el último intento.
+    const paymentStatusChanged = paymentStatus !== current.paymentStatus;
+    const isNewAttempt = payment.id !== current.mpPaymentId;
     if (paymentStatusChanged || isNewAttempt || promotedToPaid) {
       await recordOrderEvent(tx, {
         orderId: order.id,
@@ -195,26 +225,26 @@ export async function syncMercadoPagoPayment(
         actor,
         mpPaymentId: payment.id,
         ...(paymentStatusChanged
-          ? { paymentStatus: { from: order.paymentStatus, to: paymentStatus } }
+          ? { paymentStatus: { from: current.paymentStatus, to: paymentStatus } }
           : {}),
-        ...(promotedToPaid ? { status: { from: order.status, to: "PAID" as const } } : {}),
-        detail: payment.statusDetail
-          ? `Mercado Pago: ${payment.status} (${payment.statusDetail})`
-          : `Mercado Pago: ${payment.status}`,
+        ...(promotedToPaid ? { status: { from: current.status, to: "PAID" as const } } : {}),
+        detail,
       });
     }
+
+    return {
+      status: promotedToPaid ? ("PAID" as const) : current.status,
+      paymentStatus,
+    };
   });
 
-  const updated = await prisma.order.findUniqueOrThrow({
-    where: { id: order.id },
-    select: { status: true, paymentStatus: true },
-  });
+  if (!applied) return { ok: false, reason: "order_not_found" };
 
   return {
     ok: true,
     orderId: order.id,
     orderNumber: order.orderNumber,
-    paymentStatus: updated.paymentStatus,
-    orderStatus: updated.status,
+    paymentStatus: applied.paymentStatus,
+    orderStatus: applied.status,
   };
 }
