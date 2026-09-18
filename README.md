@@ -3,6 +3,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## Documentación del proyecto
 
 - [Mercado Pago (Checkout Pro)](docs/mercadopago.md) — integración del pago con tarjeta, cómo probarla y paso a producción.
+- [Deploy en Vercel](docs/deploy.md) — base de datos, storage, variables de entorno y checklist de salida.
 
 ## Getting Started
 
