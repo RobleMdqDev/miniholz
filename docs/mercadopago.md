@@ -49,6 +49,27 @@ MERCADOPAGO_WEBHOOK_SECRET=""  # obligatoria en producción
 
 - En **producción** el endpoint rechaza todo con `401`. Falla cerrado a propósito. *Si te olvidás de cargarla, los pagos no se acreditan solos.*
 - En **desarrollo** deja pasar con una advertencia en consola, para poder probar con `curl` o con el simulador.
+- Admite **varias claves separadas por coma**. Por qué, abajo.
+
+> **La clave es por aplicación, y en pruebas hay dos aplicaciones.** Esto no es
+> evidente y cuesta una tarde de depuración.
+>
+> Las credenciales de prueba de tu aplicación las emite un **usuario de prueba que
+> Mercado Pago provisiona solo**, con su propia aplicación (`get_credentials` lo
+> dice: *"provided by automatic test user, seller app ID ..."*). Los pagos de
+> sandbox los crea **esa** aplicación, así que MP los firma con **su** clave, no
+> con la de la aplicación tuya.
+>
+> El síntoma es desconcertante: el **simulador de notificaciones del panel funciona**
+> —firma como tu aplicación— pero los pagos de prueba reales llegan con
+> `SignatureMismatch`. No es un bug del manifiesto; son dos claves distintas.
+>
+> Por eso la variable acepta una lista: se cargan la de sandbox y la de producción
+> a la vez y cada notificación valida contra la que le corresponde. Nada se relaja,
+> se prueban las dos.
+>
+> La clave de sandbox se saca del panel **logueado como el usuario de prueba
+> vendedor**, en la aplicación de *ese* usuario.
 
 ### De dónde salen
 

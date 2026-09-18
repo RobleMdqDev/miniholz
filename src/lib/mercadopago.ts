@@ -62,6 +62,28 @@ function toAmount(cents: number): number {
   return Number((cents / 100).toFixed(2));
 }
 
+/**
+ * Categoría de los ítems, de la lista cerrada de Mercado Pago
+ * (`GET https://api.mercadopago.com/item_categories`). Es genérica: las cinco
+ * categorías de la tienda —mesas y sillas, percheros, guardado, organización,
+ * decoración— caen todas en "Home & Garden", así que va una constante y no un
+ * mapa que devolvería siempre lo mismo. Si algún día entra un rubro que no sea
+ * mobiliario, acá se decide.
+ */
+const ITEM_CATEGORY_ID = "home";
+
+/**
+ * Mercado Pago pondera nombre y apellido por separado para prevención de
+ * fraude. El checkout pide un solo campo, así que se parte por el primer
+ * espacio: lo demás es apellido. Con un solo token no se manda apellido, que es
+ * preferible a mandar uno inventado.
+ */
+function splitFullName(fullName: string): { name: string; surname?: string } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { name: fullName.trim() };
+  return { name: parts[0], surname: parts.slice(1).join(" ") };
+}
+
 export type PreferenceOrder = {
   id: string;
   orderNumber: number;
@@ -74,7 +96,13 @@ export type PreferenceOrder = {
     unitPrice: number;
     quantity: number;
   }[];
-  payer: { name: string; email: string; phone: string };
+  payer: {
+    name: string;
+    email: string;
+    phone: string;
+    /** Del snapshot de envío del pedido. `null` si no se pudo interpretar. */
+    address: { streetName: string; streetNumber: string; zipCode: string } | null;
+  };
 };
 
 export type CheckoutPreference = { preferenceId: string; initPoint: string };
@@ -82,15 +110,19 @@ export type CheckoutPreference = { preferenceId: string; initPoint: string };
 export async function createOrderPreference(order: PreferenceOrder): Promise<CheckoutPreference> {
   const baseUrl = getBaseUrl();
   const publicUrls = isPubliclyReachable();
+  const payerName = splitFullName(order.payer.name);
 
   const response = await new Preference(client()).create({
     body: {
       items: order.items.map((item) => ({
         id: item.id,
         title: [item.productName, item.variantName].filter(Boolean).join(" · "),
+        // Siempre viaja una descripción: sin ella, el resumen del pago le llega
+        // al comprador con el título pelado.
         description: item.personalizationText
           ? `Grabado: ${item.personalizationText}`
-          : undefined,
+          : (item.variantName ?? item.productName),
+        category_id: ITEM_CATEGORY_ID,
         quantity: item.quantity,
         currency_id: "ARS",
         unit_price: toAmount(item.unitPrice),
@@ -101,9 +133,18 @@ export async function createOrderPreference(order: PreferenceOrder): Promise<Che
         ? { shipments: { cost: toAmount(order.shippingCost), mode: "not_specified" } }
         : {}),
       payer: {
-        name: order.payer.name,
+        ...payerName,
         email: order.payer.email,
         phone: { number: order.payer.phone },
+        ...(order.payer.address
+          ? {
+              address: {
+                zip_code: order.payer.address.zipCode,
+                street_name: order.payer.address.streetName,
+                street_number: order.payer.address.streetNumber,
+              },
+            }
+          : {}),
       },
       // La referencia externa es lo que ata el pago al pedido en el webhook.
       external_reference: order.id,
@@ -202,21 +243,41 @@ export type WebhookSignatureCheck =
   | { ok: false; reason: string };
 
 /**
+ * Claves con las que se acepta una firma. `MERCADOPAGO_WEBHOOK_SECRET` admite
+ * **varias separadas por coma** porque la clave es por *aplicación*, y una misma
+ * tienda recibe avisos de más de una:
+ *
+ * - Los pagos de prueba los crea la aplicación del usuario de prueba que Mercado
+ *   Pago provisiona solo, que tiene su propia clave.
+ * - Los pagos reales los crea la aplicación propia, con otra.
+ *
+ * Con una sola clave, la mitad de las notificaciones se rechaza con `401` — y en
+ * el traspaso a producción se rechazarían todas durante un rato. Nada se relaja:
+ * cada clave se valida igual, solo se prueban varias.
+ */
+function webhookSecrets(): string[] {
+  return (process.env.MERCADOPAGO_WEBHOOK_SECRET ?? "")
+    .split(",")
+    .map((secret) => secret.trim())
+    .filter(Boolean);
+}
+
+/**
  * Valida la firma `x-signature` de una notificación. El validador del SDK
  * recalcula el HMAC-SHA256 y compara en tiempo constante.
  *
- * Sin `MERCADOPAGO_WEBHOOK_SECRET` no hay forma de distinguir una notificación
- * real de una inventada, así que en producción se rechaza. En desarrollo se
- * deja pasar con una advertencia para poder probar el webhook con `curl`.
+ * Sin ninguna clave configurada no hay forma de distinguir una notificación real
+ * de una inventada, así que en producción se rechaza. En desarrollo se deja
+ * pasar con una advertencia para poder probar el webhook con `curl`.
  */
 export function verifyWebhookSignature(input: {
   signature: string | null;
   requestId: string | null;
   dataId: string | null;
 }): WebhookSignatureCheck {
-  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  const secrets = webhookSecrets();
 
-  if (!secret) {
+  if (secrets.length === 0) {
     if (process.env.NODE_ENV === "production") {
       return { ok: false, reason: "MissingWebhookSecret" };
     }
@@ -226,19 +287,30 @@ export function verifyWebhookSignature(input: {
     return { ok: true };
   }
 
-  try {
-    WebhookSignatureValidator.validate({
-      xSignature: input.signature,
-      xRequestId: input.requestId,
-      dataId: input.dataId,
-      secret,
-      toleranceSeconds: SIGNATURE_TOLERANCE_SECONDS,
-    });
-    return { ok: true };
-  } catch (error) {
-    if (error instanceof InvalidWebhookSignatureError) {
-      return { ok: false, reason: error.reason };
+  let firstReason: string | null = null;
+
+  for (const secret of secrets) {
+    try {
+      WebhookSignatureValidator.validate({
+        xSignature: input.signature,
+        xRequestId: input.requestId,
+        dataId: input.dataId,
+        secret,
+        toleranceSeconds: SIGNATURE_TOLERANCE_SECONDS,
+      });
+      return { ok: true };
+    } catch (error) {
+      if (!(error instanceof InvalidWebhookSignatureError)) throw error;
+      firstReason ??= error.reason;
+      // Un header ausente o un timestamp fuera de ventana no dependen de la
+      // clave: seguir probando no puede cambiar el resultado.
+      if (error.reason !== "SignatureMismatch") break;
     }
-    throw error;
   }
+
+  const reason = firstReason ?? "SignatureMismatch";
+  return {
+    ok: false,
+    reason: secrets.length > 1 ? `${reason} (${secrets.length} claves probadas)` : reason,
+  };
 }

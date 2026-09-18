@@ -84,6 +84,15 @@ export async function getOrderCheckoutUrl(orderId: string): Promise<CheckoutUrlR
         name: address?.fullName ?? order.guestName ?? order.user?.name ?? "",
         email: order.guestEmail ?? order.user?.email ?? "",
         phone: address?.phone ?? order.guestPhone ?? order.user?.phone ?? "",
+        // Mercado Pago la usa para prevención de fraude. Sale del snapshot del
+        // pedido, no de la libreta del cliente, que pudo cambiar desde la compra.
+        address: address
+          ? {
+              streetName: address.street,
+              streetNumber: address.number,
+              zipCode: address.postalCode,
+            }
+          : null,
       },
     });
 
