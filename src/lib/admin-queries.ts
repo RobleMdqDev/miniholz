@@ -179,20 +179,26 @@ export type OrderTimelineEntry = {
   detail: string | null;
 };
 
-/**
- * Bitácora de un pedido para `/admin/pedidos/[id]`.
- *
- * Los administradores se resuelven en una sola consulta aparte: `OrderEvent`
- * guarda el id y no el nombre a propósito, para que renombrar a alguien no
- * reescriba la historia ya asentada.
- */
-export async function getOrderTimeline(orderId: string): Promise<OrderTimelineEntry[]> {
-  const events = await prisma.orderEvent.findMany({
-    where: { orderId },
-    orderBy: { createdAt: "asc" },
-  });
+type RawOrderEvent = {
+  id: string;
+  type: OrderEventType;
+  actor: string;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus | null;
+  fromPaymentStatus: PaymentStatus | null;
+  toPaymentStatus: PaymentStatus | null;
+  mpPaymentId: string | null;
+  detail: string | null;
+  createdAt: Date;
+};
 
-  const adminIds = [
+/**
+ * `OrderEvent` guarda el id del administrador y no su nombre a propósito, para
+ * que renombrar a alguien no reescriba la historia ya asentada. Se resuelve al
+ * leer, en una sola consulta para todo el lote.
+ */
+async function resolveAdminNames(events: RawOrderEvent[]): Promise<Map<string, string>> {
+  const ids = [
     ...new Set(
       events
         .map((event) => event.actor)
@@ -200,23 +206,13 @@ export async function getOrderTimeline(orderId: string): Promise<OrderTimelineEn
         .map((actor) => actor.slice("admin:".length)),
     ),
   ];
-  const admins = adminIds.length
-    ? await prisma.user.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true } })
-    : [];
-  const adminNameById = new Map(admins.map((admin) => [admin.id, admin.name]));
+  if (ids.length === 0) return new Map();
 
-  return events.map((event) => ({
-    id: event.id,
-    type: event.type,
-    at: event.createdAt,
-    actorLabel: describeActor(event.actor, adminNameById),
-    statusChange: event.toStatus ? { from: event.fromStatus, to: event.toStatus } : null,
-    paymentChange: event.toPaymentStatus
-      ? { from: event.fromPaymentStatus, to: event.toPaymentStatus }
-      : null,
-    mpPaymentId: event.mpPaymentId,
-    detail: event.detail,
-  }));
+  const admins = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true },
+  });
+  return new Map(admins.map((admin) => [admin.id, admin.name]));
 }
 
 function describeActor(actor: string, adminNameById: Map<string, string>): string {
@@ -229,4 +225,100 @@ function describeActor(actor: string, adminNameById: Map<string, string>): strin
     return adminNameById.get(actor.slice("admin:".length)) ?? "Administrador (cuenta eliminada)";
   }
   return actor;
+}
+
+function toTimelineEntry(event: RawOrderEvent, adminNameById: Map<string, string>): OrderTimelineEntry {
+  return {
+    id: event.id,
+    type: event.type,
+    at: event.createdAt,
+    actorLabel: describeActor(event.actor, adminNameById),
+    statusChange: event.toStatus ? { from: event.fromStatus, to: event.toStatus } : null,
+    paymentChange: event.toPaymentStatus
+      ? { from: event.fromPaymentStatus, to: event.toPaymentStatus }
+      : null,
+    mpPaymentId: event.mpPaymentId,
+    detail: event.detail,
+  };
+}
+
+/** Bitácora de un pedido, para `/admin/pedidos/[id]`. */
+export async function getOrderTimeline(orderId: string): Promise<OrderTimelineEntry[]> {
+  const events = await prisma.orderEvent.findMany({
+    where: { orderId },
+    orderBy: { createdAt: "asc" },
+  });
+  const adminNameById = await resolveAdminNames(events);
+  return events.map((event) => toTimelineEntry(event, adminNameById));
+}
+
+export const ORDER_EVENT_TYPES = [
+  "CREATED",
+  "PAYMENT_SYNCED",
+  "STATUS_CHANGED",
+  "CANCELLED_WITH_RESTOCK",
+  "SHIPPING_COST_SET",
+] as const satisfies readonly OrderEventType[];
+
+/**
+ * Origen del cambio, para filtrar sin que la vista tenga que conocer el formato
+ * interno de `actor` (`admin:<id>`, `webhook`, `return`, `system`).
+ */
+export const AUDIT_SOURCES = ["mercadopago", "admin", "tienda"] as const;
+export type AuditSource = (typeof AUDIT_SOURCES)[number];
+
+export const AUDIT_PAGE_SIZE = 50;
+
+export type AuditLogEntry = OrderTimelineEntry & { orderId: string; orderNumber: number };
+
+function actorFilter(source: AuditSource) {
+  if (source === "mercadopago") return { in: ["webhook", "return"] };
+  if (source === "admin") return { startsWith: "admin:" };
+  return { equals: "system" };
+}
+
+/**
+ * Bitácora completa, para `/admin/auditoria`. Va paginada porque esta tabla
+ * crece con cada cambio de cada pedido y no tiene techo, a diferencia del
+ * listado de pedidos.
+ */
+export async function getAuditLog(filters: { type?: string; source?: string; page?: string }) {
+  const type = (ORDER_EVENT_TYPES as readonly string[]).includes(filters.type ?? "")
+    ? (filters.type as OrderEventType)
+    : undefined;
+  const source = (AUDIT_SOURCES as readonly string[]).includes(filters.source ?? "")
+    ? (filters.source as AuditSource)
+    : undefined;
+  const where = {
+    ...(type ? { type } : {}),
+    ...(source ? { actor: actorFilter(source) } : {}),
+  };
+
+  // El total se pide primero para poder acotar la página: con un `?page=` a
+  // mano, saltear más allá del final dejaba una lista vacía sin forma de
+  // volver. Son dos consultas en vez de una, cosa que en el panel no se nota.
+  const total = await prisma.orderEvent.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+  const page = Math.min(pageCount, Math.max(1, Math.trunc(Number(filters.page)) || 1));
+
+  const events = await prisma.orderEvent.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * AUDIT_PAGE_SIZE,
+    take: AUDIT_PAGE_SIZE,
+    include: { order: { select: { id: true, orderNumber: true } } },
+  });
+
+  const adminNameById = await resolveAdminNames(events);
+
+  return {
+    total,
+    page,
+    pageCount,
+    entries: events.map((event) => ({
+      ...toTimelineEntry(event, adminNameById),
+      orderId: event.orderId,
+      orderNumber: event.order.orderNumber,
+    })) satisfies AuditLogEntry[],
+  };
 }

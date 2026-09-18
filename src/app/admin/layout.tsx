@@ -10,6 +10,7 @@ const ADMIN_LINKS = [
   { href: "/admin/productos", label: "Productos" },
   { href: "/admin/categorias", label: "Categorías" },
   { href: "/admin/pedidos", label: "Pedidos", badge: "pendingTransfers" as const },
+  { href: "/admin/auditoria", label: "Auditoría" },
   { href: "/admin/configuracion", label: "Configuración" },
 ];
 

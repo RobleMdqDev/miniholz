@@ -1,10 +1,6 @@
 import type { OrderTimelineEntry } from "@/lib/admin-queries";
-import {
-  ORDER_EVENT_TYPE_LABELS,
-  ORDER_STATUS_LABELS,
-  PAYMENT_STATUS_LABELS,
-  formatOrderDateTime,
-} from "@/lib/order-labels";
+import { ORDER_EVENT_TYPE_LABELS, formatOrderDateTime } from "@/lib/order-labels";
+import { OrderEventChanges } from "@/components/admin/OrderEventChanges";
 
 /**
  * Historial del pedido. Es lo que se mira cuando hay un reclamo, así que lo
@@ -41,27 +37,7 @@ export function OrderTimeline({ entries }: { entries: OrderTimelineEntry[] }) {
 
             <p className="text-xs text-brand-600">{entry.actorLabel}</p>
 
-            {entry.statusChange && (
-              <p className="mt-1 text-brand-800">
-                Estado:{" "}
-                <Transition
-                  from={entry.statusChange.from && ORDER_STATUS_LABELS[entry.statusChange.from]}
-                  to={ORDER_STATUS_LABELS[entry.statusChange.to]}
-                />
-              </p>
-            )}
-
-            {entry.paymentChange && (
-              <p className="text-brand-800">
-                Pago:{" "}
-                <Transition
-                  from={
-                    entry.paymentChange.from && PAYMENT_STATUS_LABELS[entry.paymentChange.from]
-                  }
-                  to={PAYMENT_STATUS_LABELS[entry.paymentChange.to]}
-                />
-              </p>
-            )}
+            <OrderEventChanges entry={entry} className="mt-1 text-brand-800" />
 
             {entry.detail && <p className="mt-1 text-xs text-brand-600">{entry.detail}</p>}
 
@@ -72,15 +48,5 @@ export function OrderTimeline({ entries }: { entries: OrderTimelineEntry[] }) {
         ))}
       </ol>
     </section>
-  );
-}
-
-/** Sin origen (un alta) se muestra solo el destino, sin una flecha que no dice nada. */
-function Transition({ from, to }: { from: string | null; to: string }) {
-  if (!from) return <strong className="font-semibold">{to}</strong>;
-  return (
-    <>
-      {from} → <strong className="font-semibold">{to}</strong>
-    </>
   );
 }
