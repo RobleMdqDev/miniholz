@@ -1,97 +1,132 @@
 # Deploy en Vercel
 
-Qué hace falta para poner MiniHolz en producción, en orden. El repo ya está
-preparado (Postgres, migraciones y Blob); lo que queda es aprovisionar y cargar
-variables.
+Cómo está montada la tienda en producción y qué hacer para reproducirlo o
+tocarlo. Todo lo de acá se hizo con la CLI (`npx vercel`), así que los comandos
+son los reales, no una guía aproximada.
 
-## Resumen de lo que cambia respecto a desarrollo
+## Cómo está armado hoy
 
-| | Desarrollo | Producción |
-| --- | --- | --- |
-| Base | Postgres local o una branch de Neon | Neon (connection string *pooled*) |
-| Archivos subidos | `public/uploads/` (disco) | Vercel Blob |
-| Migraciones | `npm run db:migrate` a mano | `prisma migrate deploy`, dentro del build |
-| Mercado Pago | credenciales `TEST-`, sin webhook | credenciales reales + webhook firmado |
-
-La elección de storage es automática: `src/lib/storage.ts` usa el Blob solo si
-existe `BLOB_READ_WRITE_TOKEN`, que inyecta Vercel. No hay que tocar código.
-
-## 1. Base de datos (Neon)
-
-1. En el proyecto de Vercel → **Storage → Create Database → Neon**. Al conectarlo
-   quedan cargadas solas las variables `DATABASE_URL` y `POSTGRES_*`.
-2. Verificar que `DATABASE_URL` sea la **pooled** (el host tiene `-pooler`). En
-   serverless cada invocación abre su conexión: contra la URL directa la base se
-   queda sin slots con poco tráfico.
-
-> **Ojo con el `.env` local.** Hoy sigue diciendo `DATABASE_URL="file:./dev.db"`,
-> que es de la etapa SQLite y ya no sirve: el schema es Postgres y la app usa el
-> adapter `pg`. Con esa URL, `npm run dev` y `npm run build` fallan con
-> `ECONNREFUSED`. Hay que apuntarlo a un Postgres local o a una branch de
-> desarrollo de Neon, y volver a sembrar (`npm run db:seed`): los datos que
-> estaban en `dev.db` no se migran solos.
-
-## 2. Blob store (imágenes y comprobantes)
-
-Vercel → **Storage → Create → Blob**, conectarlo al proyecto. Eso define
-`BLOB_READ_WRITE_TOKEN` y con eso alcanza: las imágenes de producto y los
-comprobantes de transferencia pasan a guardarse ahí.
-
-El host del Blob ya está habilitado en `next.config.ts` para `next/image`. Si se
-cambia de proveedor, hay que actualizar ese `remotePatterns` o las imágenes
-responden `400`.
-
-## 3. Variables de entorno en Vercel
-
-Además de las dos que cargan los servicios anteriores:
-
-| Variable | Valor |
+| Pieza | Qué es |
 | --- | --- |
-| `AUTH_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
-| `NEXT_PUBLIC_BASE_URL` | el dominio real con `https` y sin barra final |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | credenciales del admin inicial (solo se usan en el seed) |
-| `WHATSAPP_NUMBER`, `BANK_ACCOUNT_INFO` | defaults de la tienda; después se editan en `/admin/configuracion` |
-| `UPLOADS_MAX_SIZE_MB` | `4`. Más que eso no sirve: Vercel corta los request de más de 4,5 MB antes de que lleguen a la app |
-| `MERCADOPAGO_*` | ver el paso 5 |
+| Hosting | Proyecto `miniholz`, región `iad1`, conectado al repo de GitHub: cada push a `main` deploya producción |
+| Base | Neon Postgres (`miniholz-db`), plan free, región `iad1` |
+| Archivos subidos | Vercel Blob (`miniholz-uploads`), público, región `iad1` |
+| Migraciones | Corren dentro del build (`prisma migrate deploy && next build`) |
 
-`NEXT_PUBLIC_BASE_URL` se compila dentro del bundle: si se cambia, hay que
-redeployar, no alcanza con guardar la variable.
+La base y el Blob están en `iad1` a propósito: es donde corren las funciones, y
+co-locarlas importa más que la cercanía al usuario, porque cada render hace
+varias queries y ese ida y vuelta se multiplica.
 
-## 4. Primer deploy y datos iniciales
+## Variables de entorno
 
-El `build` corre `prisma migrate deploy` antes de `next build`. Es a propósito y
-no es opcional: la ficha de producto prerenderiza sus rutas con
-`generateStaticParams()`, que consulta la base, así que sin las tablas creadas el
-build falla.
+Solo estas se leen en runtime y por lo tanto viven en Vercel:
 
-Después del primer deploy, sembrar el admin y la configuración de la tienda —
-una vez, desde la máquina local y apuntando a la base de producción:
+| Variable | Quién la pone | Notas |
+| --- | --- | --- |
+| `DATABASE_URL` | la integración de Neon | Conexión *pooled*. No tocar a mano |
+| `DATABASE_URL_UNPOOLED` | la integración de Neon | Conexión directa; la usan las migraciones |
+| `BLOB_READ_WRITE_TOKEN` | la integración de Blob | Su sola presencia hace que la app guarde en Blob en vez de disco |
+| `AUTH_SECRET` | a mano | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
+| `NEXT_PUBLIC_BASE_URL` | a mano | Solo en Production, con el dominio real. Se compila en el bundle: si cambia, hay que redeployar |
+| `UPLOADS_MAX_SIZE_MB` | a mano | `4`. Más que eso no sirve: Vercel corta los request de más de 4,5 MB antes de que lleguen a la app |
+| `MERCADOPAGO_ACCESS_TOKEN` | a mano | Sin esto el checkout no ofrece pago con tarjeta |
+| `MERCADOPAGO_WEBHOOK_SECRET` | a mano | Obligatoria: en producción el webhook responde `401` a todo si falta |
+
+**`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, `WHATSAPP_NUMBER` y
+`BANK_ACCOUNT_INFO` no van en Vercel.** Las lee únicamente `prisma/seed.ts`, que
+se corre desde tu máquina; en runtime la tienda toma esos datos de la tabla
+`StoreSettings`, editable desde `/admin/configuracion`. Tenerlas cargadas en la
+plataforma solo genera la ilusión de que configuran algo.
+
+> El wizard de import de Vercel ofrece precargar las claves que encuentra en
+> `.env.example`, y las crea **vacías**. Una variable vacía no es lo mismo que
+> una variable ausente para quien la lee: `DATABASE_URL=""` hizo fallar el primer
+> deploy con "Falta DATABASE_URL". Si usás el wizard, revisá qué quedó creado.
+
+## Entorno local
+
+`vercel link` y las integraciones escriben `.env.local`, que Next lee con
+prioridad sobre `.env`. Para que Prisma y el seed —que corren fuera de Next— vean
+lo mismo, ambos importan `prisma/load-env.ts`, que replica esa precedencia.
+
+Consecuencia: **tu entorno local apunta a la misma base y al mismo Blob que
+producción.** Para separarlos, creá una branch en Neon y poné su connection
+string en `.env.local`.
+
+Para refrescar las variables locales:
 
 ```bash
-DATABASE_URL="<la pooled de Neon>" npm run db:seed
+npx vercel env pull
 ```
 
-El seed es idempotente: si el admin ya existe no le pisa la contraseña.
+## Rehacer la infraestructura desde cero
 
-## 5. Mercado Pago en producción
+```bash
+npx vercel link --project miniholz
+npx vercel integration add neon --plan free_v3 -m region=iad1 -m auth=false -n miniholz-db
+npx vercel blob create-store miniholz-uploads --access public --region iad1 --yes
+```
 
-Los tres pasos están detallados en [mercadopago.md](mercadopago.md) §"Pasar a
-producción". En corto:
+`-m auth=false` desactiva Neon Auth: la autenticación la maneja Auth.js contra
+nuestra propia tabla `User`.
 
-1. Credenciales de producción (`APP_USR-...`) en `MERCADOPAGO_ACCESS_TOKEN` y
-   `MERCADOPAGO_PUBLIC_KEY`.
-2. Panel → **Webhooks** apuntando a `https://DOMINIO/api/mercadopago/webhook`,
-   evento **Pagos**.
-3. La clave secreta **de producción** (es distinta de la de prueba) en
-   `MERCADOPAGO_WEBHOOK_SECRET`. Sin ella el endpoint responde `401` a todo y los
-   pagos no se acreditan solos.
+Después, las variables a mano (una por entorno, el valor por stdin para que no
+quede en el historial):
 
-## Checklist final
+```bash
+printf '%s' "<secreto>" | npx vercel env add AUTH_SECRET production --sensitive
+printf '%s' "https://<dominio>" | npx vercel env add NEXT_PUBLIC_BASE_URL production --no-sensitive
+printf '%s' "4" | npx vercel env add UPLOADS_MAX_SIZE_MB production --no-sensitive
+```
 
-- [ ] Neon conectado y `DATABASE_URL` pooled
-- [ ] Blob store conectado
-- [ ] Variables del paso 3 cargadas (Production y Preview)
-- [ ] Deploy verde (las migraciones corrieron en el build)
-- [ ] Seed ejecutado y login en `/admin` OK
-- [ ] Dominio apuntado y `NEXT_PUBLIC_BASE_URL` con ese dominio
+## Migraciones
+
+Las corre el build. Es a propósito y no es opcional: la ficha de producto
+prerenderiza sus rutas con `generateStaticParams()`, que consulta la base, así
+que sin las tablas creadas el build falla.
+
+Usan `DATABASE_URL_UNPOOLED` (ver `prisma7.config.ts`) porque `migrate deploy`
+toma un advisory lock de Postgres, y ese lock no sobrevive a un pooler en modo
+transacción.
+
+## Datos iniciales
+
+```bash
+npx prisma db seed
+```
+
+Crea el usuario administrador, la fila de `StoreSettings` **y un catálogo de
+muestra de 5 categorías y 8 productos**. Ese catálogo es demo: borralo desde
+`/admin/productos` antes de abrir la tienda al público. El seed es idempotente y
+no pisa la contraseña del admin si ya existe.
+
+## Acceso público
+
+Los proyectos nuevos vienen con **Deployment Protection** activada: todas las
+URLs redirigen al SSO de Vercel y solo entra quien tenga acceso a la cuenta. Para
+una tienda pública hay que desactivarla en Settings → Deployment Protection
+(conviene dejarla puesta solo para los previews).
+
+Para probar una URL protegida desde la terminal sin desactivar nada:
+
+```bash
+npx vercel curl <url>
+```
+
+## Mercado Pago en producción
+
+Detallado en [mercadopago.md](mercadopago.md) §"Pasar a producción". En corto:
+credenciales `APP_USR-` reales, webhook apuntando a
+`https://DOMINIO/api/mercadopago/webhook` con evento **Pagos**, y la clave
+secreta **de producción** —distinta de la de prueba— en
+`MERCADOPAGO_WEBHOOK_SECRET`.
+
+## Checklist para abrir la tienda
+
+- [ ] `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_WEBHOOK_SECRET` cargadas
 - [ ] Webhook de MP dado de alta y una compra de prueba acreditada
+- [ ] WhatsApp y datos bancarios reales cargados en `/admin/configuracion`
+- [ ] Catálogo de muestra borrado
+- [ ] Contraseña del admin cambiada
+- [ ] Deployment Protection desactivada para producción
+- [ ] Dominio propio apuntado y `NEXT_PUBLIC_BASE_URL` actualizada
