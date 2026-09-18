@@ -7,6 +7,8 @@ import { formatCurrencyFromCents } from "@/lib/format";
 import { formatOrderDate, PAYMENT_METHOD_LABELS } from "@/lib/order-labels";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
 import { OrderAdminPanel } from "@/components/admin/OrderAdminPanel";
+import { OrderTimeline } from "@/components/admin/OrderTimeline";
+import { getOrderTimeline } from "@/lib/admin-queries";
 
 export const metadata: Metadata = {
   title: "Detalle del pedido",
@@ -16,6 +18,8 @@ export default async function AdminOrderDetailPage(props: PageProps<"/admin/pedi
   const { id } = await props.params;
   const order = await getOrderById(id);
   if (!order) notFound();
+
+  const timeline = await getOrderTimeline(order.id);
 
   const address = parseShippingAddress(order.shippingAddress);
   const contactName = order.user?.name ?? order.guestName ?? address?.fullName ?? "—";
@@ -128,6 +132,7 @@ export default async function AdminOrderDetailPage(props: PageProps<"/admin/pedi
               )}
             </section>
           )}
+          <OrderTimeline entries={timeline} />
         </div>
 
         <aside>

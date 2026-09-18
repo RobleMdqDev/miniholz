@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import type {
+  OrderEventType,
+  OrderStatus,
+  PaymentStatus,
+} from "@/generated/prisma/enums";
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -162,3 +167,66 @@ function isPaymentMethod(value: unknown): value is (typeof PAYMENT_METHODS)[numb
 }
 
 export { ORDER_STATUSES, PAYMENT_METHODS };
+
+export type OrderTimelineEntry = {
+  id: string;
+  type: OrderEventType;
+  at: Date;
+  actorLabel: string;
+  statusChange: { from: OrderStatus | null; to: OrderStatus } | null;
+  paymentChange: { from: PaymentStatus | null; to: PaymentStatus } | null;
+  mpPaymentId: string | null;
+  detail: string | null;
+};
+
+/**
+ * Bitácora de un pedido para `/admin/pedidos/[id]`.
+ *
+ * Los administradores se resuelven en una sola consulta aparte: `OrderEvent`
+ * guarda el id y no el nombre a propósito, para que renombrar a alguien no
+ * reescriba la historia ya asentada.
+ */
+export async function getOrderTimeline(orderId: string): Promise<OrderTimelineEntry[]> {
+  const events = await prisma.orderEvent.findMany({
+    where: { orderId },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const adminIds = [
+    ...new Set(
+      events
+        .map((event) => event.actor)
+        .filter((actor) => actor.startsWith("admin:"))
+        .map((actor) => actor.slice("admin:".length)),
+    ),
+  ];
+  const admins = adminIds.length
+    ? await prisma.user.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true } })
+    : [];
+  const adminNameById = new Map(admins.map((admin) => [admin.id, admin.name]));
+
+  return events.map((event) => ({
+    id: event.id,
+    type: event.type,
+    at: event.createdAt,
+    actorLabel: describeActor(event.actor, adminNameById),
+    statusChange: event.toStatus ? { from: event.fromStatus, to: event.toStatus } : null,
+    paymentChange: event.toPaymentStatus
+      ? { from: event.fromPaymentStatus, to: event.toPaymentStatus }
+      : null,
+    mpPaymentId: event.mpPaymentId,
+    detail: event.detail,
+  }));
+}
+
+function describeActor(actor: string, adminNameById: Map<string, string>): string {
+  if (actor === "webhook") return "Mercado Pago (aviso automático)";
+  if (actor === "return") return "Mercado Pago (vuelta del checkout)";
+  if (actor === "system") return "Tienda";
+  if (actor.startsWith("admin:")) {
+    // Un admin borrado deja el id huérfano; se muestra igual, porque perder el
+    // asiento sería peor que mostrarlo sin nombre.
+    return adminNameById.get(actor.slice("admin:".length)) ?? "Administrador (cuenta eliminada)";
+  }
+  return actor;
+}
