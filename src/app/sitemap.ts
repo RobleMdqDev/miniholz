@@ -23,12 +23,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/productos`, changeFrequency: "weekly", priority: 0.9 },
   ];
 
-  // Las categorías todavía son un parámetro (`?categoria=`) y no una ruta
-  // propia. Se listan igual porque hoy es la única URL que tienen y cada una
-  // muestra contenido distinto; cuando existan las rutas reales (fase 3 del
-  // plan) se reemplazan acá y en la canónica del listado.
+  // Las rutas reales de categoría. La versión con parámetro (`?categoria=`)
+  // sigue respondiendo para no romper enlaces viejos, pero no va acá: canoniza
+  // hacia estas, y un sitemap que declara URLs canonizadas a otro lado manda
+  // señales contradictorias.
   const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
-    url: `${base}/productos?categoria=${category.slug}`,
+    url: `${base}/productos/categoria/${category.slug}`,
     changeFrequency: "weekly",
     priority: 0.8,
   }));

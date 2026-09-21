@@ -53,6 +53,13 @@ export async function getCategories() {
   });
 }
 
+export async function getCategoryBySlug(slug: string) {
+  return prisma.category.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true },
+  });
+}
+
 export async function getProducts(options: { categorySlug?: string; take?: number } = {}) {
   const products = await prisma.product.findMany({
     where: {

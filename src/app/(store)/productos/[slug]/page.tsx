@@ -40,9 +40,21 @@ export default async function ProductDetailPage(props: PageProps<"/productos/[sl
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
+  // Los mismos escalones que muestra el `<nav>` de abajo, más el producto: el
+  // marcado de migas de pan tiene que describir lo que el visitante ve.
+  const breadcrumb: BreadcrumbStep[] = [
+    { name: "Tienda", path: "/productos" },
+    ...(product.category
+      ? [{ name: product.category.name, path: `/productos/categoria/${product.category.slug}` }]
+      : []),
+    { name: product.name, path: `/productos/${product.slug}` },
+  ];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
+      <JsonLd data={productJsonLd(product)} />
+      <JsonLd data={breadcrumbJsonLd(breadcrumb)} />
+
       <nav className="mb-6 text-xs text-brand-600" aria-label="Migas de pan">
         <Link href="/productos" className="hover:text-gold-700">
           Tienda
@@ -51,7 +63,7 @@ export default async function ProductDetailPage(props: PageProps<"/productos/[sl
           <>
             {" / "}
             <Link
-              href={`/productos?categoria=${product.category.slug}`}
+              href={`/productos/categoria/${product.category.slug}`}
               className="hover:text-gold-700"
             >
               {product.category.name}

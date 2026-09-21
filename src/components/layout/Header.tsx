@@ -26,7 +26,7 @@ export function Header({
 }) {
   const firstName = user?.name?.trim().split(" ")[0];
   const storeCategories = categories.map((category) => ({
-    href: `/productos?categoria=${category.slug}`,
+    href: `/productos/categoria/${category.slug}`,
     label: category.name,
   }));
 
