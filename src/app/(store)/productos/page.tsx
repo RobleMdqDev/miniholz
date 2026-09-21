@@ -2,10 +2,35 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getCategories, getProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/product/ProductCard";
+import { SITE_NAME, socialMetadata } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Tienda online",
-};
+/**
+ * Antes las cinco categorías compartían título y descripción con el listado
+ * completo: cinco páginas distintas compitiendo entre sí por el mismo término.
+ * Cada filtro conocido tiene ahora los suyos y se canoniza a sí mismo; uno
+ * inventado (`?categoria=cualquiera`) cae en el listado completo, así que un
+ * parámetro al azar no inventa una URL indexable nueva.
+ */
+export async function generateMetadata(props: PageProps<"/productos">): Promise<Metadata> {
+  const { categoria } = await props.searchParams;
+  const categorySlug = typeof categoria === "string" ? categoria : undefined;
+  const category = categorySlug
+    ? (await getCategories()).find((item) => item.slug === categorySlug)
+    : undefined;
+
+  const title = category ? category.name : "Tienda online";
+  const description = category
+    ? `${category.name} de madera hechos a mano en ${SITE_NAME}, con opción de grabado de nombre. Envíos a todo el país.`
+    : `Toda la tienda de ${SITE_NAME}: accesorios de madera y mesas infantiles personalizadas, con grabado de nombre. Envíos a todo el país.`;
+  const canonical = category ? `/productos?categoria=${category.slug}` : "/productos";
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    ...socialMetadata({ title, description, url: canonical }),
+  };
+}
 
 export default async function ProductsPage(props: PageProps<"/productos">) {
   const { categoria } = await props.searchParams;

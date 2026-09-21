@@ -1,8 +1,16 @@
+import type { Metadata } from "next";
 import { Truck, CreditCard, Percent, ShieldCheck } from "lucide-react";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
 import Link from "next/link";
 import { ProductCard } from "@/components/product/ProductCard";
 import { getProducts } from "@/lib/catalog";
+
+// El título y la descripción se heredan del layout raíz; lo único propio de esta
+// página es la canónica, que no se puede declarar arriba sin que la hereden
+// todas las demás.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const FEATURES = [
   { icon: Truck, title: "Envíos a todo el país", description: "Coordinamos el costo con vos" },

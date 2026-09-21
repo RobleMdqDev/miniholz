@@ -94,6 +94,23 @@ export async function getProductBySlug(slug: string) {
 
 export type ProductDetail = NonNullable<Awaited<ReturnType<typeof getProductBySlug>>>;
 
+/**
+ * Lo que el sitemap necesita de cada producto activo: la url, cuándo cambió por
+ * última vez y su primera imagen. `updatedAt` sale de la base y no de la fecha
+ * del build, que es lo que le dice al buscador que vale la pena volver a pasar.
+ */
+export async function getSitemapProducts() {
+  return prisma.product.findMany({
+    where: { isActive: true },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      slug: true,
+      updatedAt: true,
+      images: { select: { url: true }, orderBy: { position: "asc" }, take: 1 },
+    },
+  });
+}
+
 /** Los slugs de producto activos, para prerenderizar las fichas. */
 export async function getActiveProductSlugs() {
   const products = await prisma.product.findMany({

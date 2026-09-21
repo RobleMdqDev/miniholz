@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Truck, CreditCard, Percent } from "lucide-react";
 import { getActiveProductSlugs, getProductBySlug } from "@/lib/catalog";
+import { metaDescription, socialMetadata } from "@/lib/site";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductPurchasePanel } from "@/components/product/ProductPurchasePanel";
 
@@ -14,11 +15,21 @@ export async function generateStaticParams() {
 export async function generateMetadata(props: PageProps<"/productos/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
   const product = await getProductBySlug(slug);
-  if (!product) return { title: "Producto no encontrado" };
+  // Un slug que no existe termina en 404: que no se indexe ni se comparta.
+  if (!product) return { title: "Producto no encontrado", robots: { index: false } };
+
+  const description = metaDescription(product.description);
+  const image = product.images[0];
+  const canonical = `/productos/${product.slug}`;
 
   return {
     title: product.name,
-    description: product.description.slice(0, 160),
+    description,
+    alternates: { canonical },
+    // La foto del producto dice mucho más que el logo al compartir el link.
+    // Puede ser relativa o del Blob store: `metadataBase` resuelve la primera y
+    // deja pasar la segunda.
+    ...socialMetadata({ title: product.name, description, url: canonical, image }),
   };
 }
 
@@ -26,6 +37,7 @@ export default async function ProductDetailPage(props: PageProps<"/productos/[sl
   const { slug } = await props.params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
+
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">

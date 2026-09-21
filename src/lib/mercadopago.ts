@@ -7,6 +7,7 @@ import {
   WebhookSignatureValidator,
 } from "mercadopago";
 import type { PaymentStatus } from "@/generated/prisma/enums";
+import { siteUrl } from "@/lib/site";
 
 /**
  * Capa fina sobre la API de Mercado Pago (Checkout Pro). Acá no se toca la
@@ -38,8 +39,10 @@ function client(): MercadoPagoConfig {
   });
 }
 
+/** La URL pública del sitio. Vive en `@/lib/site`, que es de donde también la
+ * toman el sitemap, el robots y las canónicas. */
 export function getBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
+  return siteUrl();
 }
 
 /**

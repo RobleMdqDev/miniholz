@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import { SITE_DESCRIPTION, SITE_NAME, siteUrl, socialMetadata } from "@/lib/site";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -9,12 +10,19 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
+  // Sin `metadataBase`, toda URL relativa de OpenGraph o canónica se emite
+  // relativa y los validadores de las redes la descartan.
+  metadataBase: new URL(siteUrl()),
   title: {
-    default: "MiniHolz",
-    template: "%s | MiniHolz",
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    "Pequeñas creaciones, grandes alegrías: accesorios de madera y mesas infantiles personalizadas, con grabado de nombre.",
+  description: SITE_DESCRIPTION,
+  ...socialMetadata({ title: SITE_NAME, description: SITE_DESCRIPTION }),
+  // Acá **no** va `alternates.canonical`. La metadata se hereda hacia abajo y
+  // se mezcla de forma superficial, así que una canónica en la raíz haría que
+  // todas las páginas sin canónica propia apunten al inicio — que es peor que
+  // no tener canónica. Cada página indexable declara la suya.
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
