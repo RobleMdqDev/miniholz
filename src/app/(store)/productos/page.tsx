@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getCategories, getProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/product/ProductCard";
 import { SITE_NAME, socialMetadata } from "@/lib/site";
+import { breadcrumbJsonLd } from "@/lib/json-ld";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 /**
  * Antes las cinco categorías compartían título y descripción con el listado
@@ -45,6 +47,26 @@ export default async function ProductsPage(props: PageProps<"/productos">) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
+      {/* Solo con una categoría activa: en el listado completo las migas serían
+          un único escalón que repite el h1. */}
+      {activeCategory && (
+        <>
+          <JsonLd
+            data={breadcrumbJsonLd([
+              { name: "Tienda", path: "/productos" },
+              { name: activeCategory.name, path: `/productos?categoria=${activeCategory.slug}` },
+            ])}
+          />
+          <nav className="mb-4 text-xs text-brand-600" aria-label="Migas de pan">
+            <Link href="/productos" className="hover:text-gold-700">
+              Tienda
+            </Link>
+            {" / "}
+            <span className="text-brand-900">{activeCategory.name}</span>
+          </nav>
+        </>
+      )}
+
       <h1 className="mb-1 text-2xl font-extrabold text-brand-900">
         {activeCategory ? activeCategory.name : "Tienda online"}
       </h1>

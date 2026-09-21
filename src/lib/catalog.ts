@@ -85,7 +85,7 @@ export async function getProductBySlug(slug: string) {
         orderBy: { position: "asc" },
       },
       variants: {
-        select: { id: true, name: true, stock: true, priceOverride: true },
+        select: { id: true, name: true, sku: true, stock: true, priceOverride: true },
         orderBy: { position: "asc" },
       },
     },

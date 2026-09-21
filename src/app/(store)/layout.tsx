@@ -6,6 +6,8 @@ import { CartSync } from "@/components/cart/CartSync";
 import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { organizationJsonLd, websiteJsonLd } from "@/lib/json-ld";
 
 /** Beneficios fijos de la tienda. El primer mensaje lo edita el admin desde
  * /admin/configuracion (`StoreSettings.announcementText`). */
@@ -27,6 +29,11 @@ export default async function StoreLayout({ children }: { children: React.ReactN
 
   return (
     <>
+      {/* Van en el layout de la tienda y no en el raíz: describen el sitio
+          público, y el panel de administración no se indexa ni le sirven. */}
+      <JsonLd data={organizationJsonLd()} />
+      <JsonLd data={websiteJsonLd()} />
+
       <TopBar messages={messages} />
       <Header user={session?.user} categories={categories} />
       <main className="flex-1">{children}</main>

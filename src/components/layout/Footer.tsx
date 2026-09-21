@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Mail, MapPin } from "lucide-react";
+import { SITE_EMAIL } from "@/lib/site";
 
 const FOOTER_LINKS = [
   { href: "/", label: "Inicio" },
@@ -26,7 +27,7 @@ export function Footer() {
           <h3 className="mb-3 text-base font-bold">Contactános</h3>
           <p className="flex items-center gap-2">
             <Mail className="h-4 w-4" aria-hidden />
-            info@miniholz.com.ar
+            {SITE_EMAIL}
           </p>
           <p className="mt-2 flex items-center gap-2">
             <MapPin className="h-4 w-4" aria-hidden />

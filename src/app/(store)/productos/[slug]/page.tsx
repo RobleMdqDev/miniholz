@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { Truck, CreditCard, Percent } from "lucide-react";
 import { getActiveProductSlugs, getProductBySlug } from "@/lib/catalog";
 import { metaDescription, socialMetadata } from "@/lib/site";
+import { breadcrumbJsonLd, productJsonLd, type BreadcrumbStep } from "@/lib/json-ld";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductPurchasePanel } from "@/components/product/ProductPurchasePanel";
 

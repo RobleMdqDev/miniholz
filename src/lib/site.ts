@@ -11,6 +11,9 @@ export const SITE_NAME = "MiniHolz";
 export const SITE_DESCRIPTION =
   "Pequeñas creaciones, grandes alegrías: accesorios de madera y mesas infantiles personalizadas, con grabado de nombre.";
 
+/** Lo muestra el pie y lo declara el JSON-LD de la organización: un solo lugar. */
+export const SITE_EMAIL = "info@miniholz.com.ar";
+
 /**
  * Imagen por defecto al compartir en redes. Hoy es el logo, que es cuadrado;
  * las redes prefieren 1200×630 y recortan lo que no entra. Cuando exista una
