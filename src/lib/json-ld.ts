@@ -67,6 +67,37 @@ export function websiteJsonLd() {
   };
 }
 
+/**
+ * Una nota de Novedades. `BlogPosting` y no `Article` a secas: describe mejor
+ * lo que son y es lo que Google espera de una sección de notas.
+ */
+export function blogPostingJsonLd(post: {
+  slug: string;
+  title: string;
+  excerpt: string;
+  coverUrl: string | null;
+  publishedAt: Date | null;
+  updatedAt: Date;
+}) {
+  const url = absoluteUrl(`/novedades/${post.slug}`);
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.excerpt,
+    url,
+    mainEntityOfPage: url,
+    inLanguage: "es-AR",
+    ...(post.coverUrl ? { image: [absoluteUrl(post.coverUrl)] } : {}),
+    ...(post.publishedAt ? { datePublished: post.publishedAt.toISOString() } : {}),
+    dateModified: post.updatedAt.toISOString(),
+    // El autor es la marca, no una persona: no hay firma en las notas y
+    // declarar una inventada sería marcado falso.
+    author: { "@id": organizationId() },
+    publisher: { "@id": organizationId() },
+  };
+}
+
 /** Un escalón de las migas de pan: el nombre visible y su ruta. */
 export type BreadcrumbStep = { name: string; path: string };
 

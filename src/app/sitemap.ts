@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getCategories, getSitemapProducts } from "@/lib/catalog";
+import { getPublishedPostRoutes } from "@/lib/posts";
 import { absoluteUrl, siteUrl } from "@/lib/site";
 
 /**
@@ -12,16 +13,30 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  const [categories, products] = await Promise.all([getCategories(), getSitemapProducts()]);
+  const [categories, products, posts] = await Promise.all([
+    getCategories(),
+    getSitemapProducts(),
+    getPublishedPostRoutes(),
+  ]);
 
   // Solo van rutas que existen. Las páginas de contenido (/quienes-somos,
-  // /como-comprar, /contacto, /ayuda, /novedades y la de cambios y
-  // devoluciones) todavía responden 404 y se suman acá recién cuando existan:
-  // un sitemap que declara 404 es peor que no tenerlo.
+  // /como-comprar, /contacto, /ayuda y la de cambios y devoluciones) todavía
+  // responden 404 y se suman acá recién cuando existan: un sitemap que declara
+  // 404 es peor que no tenerlo.
   const staticPages: MetadataRoute.Sitemap = [
     { url: base, changeFrequency: "weekly", priority: 1 },
     { url: `${base}/productos`, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/novedades`, changeFrequency: "weekly", priority: 0.8 },
   ];
+
+  // Solo las publicadas: `getPublishedPostRoutes` ya filtra borradores y notas
+  // con fecha futura.
+  const postPages: MetadataRoute.Sitemap = posts.map((post) => ({
+    url: `${base}/novedades/${post.slug}`,
+    lastModified: post.updatedAt,
+    changeFrequency: "monthly",
+    priority: 0.6,
+  }));
 
   // Las rutas reales de categoría. La versión con parámetro (`?categoria=`)
   // sigue respondiendo para no romper enlaces viejos, pero no va acá: canoniza
@@ -43,5 +58,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(product.images[0] ? { images: [absoluteUrl(product.images[0].url)] } : {}),
   }));
 
-  return [...staticPages, ...categoryPages, ...productPages];
+  return [...staticPages, ...categoryPages, ...productPages, ...postPages];
 }

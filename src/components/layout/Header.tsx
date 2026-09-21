@@ -12,6 +12,7 @@ type HeaderCategory = { slug: string; name: string };
 const NAV_LINKS_BEFORE = [{ href: "/", label: "Inicio" }];
 
 const NAV_LINKS_AFTER = [
+  { href: "/novedades", label: "Novedades" },
   { href: "/quienes-somos", label: "Quiénes Somos" },
   { href: "/como-comprar", label: "Cómo Comprar" },
   { href: "/contacto", label: "Contacto" },

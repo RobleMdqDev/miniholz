@@ -17,13 +17,14 @@ contenido que faltan, y empezar una política de SEO.
 | 3 | SEO fase 1 (metadataBase, robots, sitemap, metadata por página) | ✅ hecho |
 | 5 | SEO fase 2 (JSON-LD) | ✅ hecho, salvo `FAQPage` |
 | 6 | Rutas reales de categoría | ✅ hecho |
+| 7 | Novedades | ✅ hecho |
 | 2 | Páginas de contenido | ⛔ bloqueado: faltan los textos del negocio |
 | 4 | Mega-menú con contenido | ⏳ depende de 2 |
-| 7 | Novedades | ⏳ pendiente, entrega propia |
 | 8 | SEO fases 4 y 5 | ⏳ pendiente |
 
-Las seis rutas en 404 de la sección 0 **siguen en 404**: crearlas es la entrega 2 y
-necesita contenido real. Por eso el sitemap todavía no las lista.
+De las seis rutas en 404 de la sección 0, `/novedades` ya existe. **Las otras cinco
+siguen en 404**: crearlas es la entrega 2 y necesita contenido real, así que el
+sitemap todavía no las lista.
 
 ---
 
@@ -189,9 +190,34 @@ maqueta y los textos de relleno, pero:
 - Plazos de producción, costos y zonas de envío, horarios y datos de contacto son datos
   del negocio. Inventarlos sería peor que dejar la página para después.
 
-### Novedades, que es un proyecto aparte
+### Novedades, que es un proyecto aparte — ✅ hecho
 
-No es una página: es un modelo de contenido. Necesita modelo `Post` en Prisma (slug,
+> Implementado. El modelo `Post` (migración `agrega_novedades`), el ABM en
+> `/admin/novedades`, el listado paginado en `/novedades` y la ficha en
+> `/novedades/[slug]`, con `BlogPosting` + `BreadcrumbList` y las notas publicadas
+> en el sitemap. Decisiones que conviene conocer:
+>
+> - **El cuerpo se guarda en Markdown**, no en HTML, y se renderiza con
+>   `react-markdown` **sin** `rehype-raw`. Eso es lo que hace que el texto que
+>   escribe el admin no pueda inyectar marcado en la página: un `<script>` en el
+>   cuerpo sale como texto visible, no como etiqueta. Si algún día hace falta HTML
+>   dentro de una nota, la respuesta no es habilitar `rehype-raw` sino sanitizar.
+> - **La tienda nunca ve un borrador.** El filtro no se repite en cada consulta,
+>   vive en `publishedWhere()` dentro de `src/lib/posts.ts`, para que agregar una
+>   consulta nueva no sea una oportunidad de olvidárselo. Filtra por estado y
+>   también por fecha, así que una nota se puede dejar programada.
+> - **`publishedAt` se sella al publicar por primera vez** y no se vuelve a tocar,
+>   ni siquiera al despublicar y volver a publicar: si se borrara, una nota vieja
+>   reaparecería al tope del listado como si fuera nueva.
+> - **La portada se sube al storage propio** en vez de aceptar una URL pegada:
+>   `next/image` solo optimiza los dominios declarados en `next.config.ts`, y una
+>   URL externa daría 400 en producción.
+>
+> Lo que **no** quedó probado con clicks: el formulario del panel. Entrar exige una
+> sesión de admin, y para eso hay que tipear una contraseña. Conviene que alguien
+> cree una nota de punta a punta antes de darlo por cerrado.
+
+El diagnóstico original decía: no es una página, es un modelo de contenido. Necesita modelo `Post` en Prisma (slug,
 título, bajada, cuerpo, portada, estado, fecha de publicación), migración, ABM en el
 admin, editor de texto enriquecido o MDX, listado paginado y ficha con su metadata.
 
@@ -364,7 +390,7 @@ Nada de lo anterior se puede evaluar sin esto:
 | 4 | Mega-menú con contenido | 2, para tener adónde enlazar | Mediano |
 | ~~5~~ | ~~SEO fase 2 (JSON-LD)~~ ✅ salvo `FAQPage`, que depende de la 2 | 3 | Chico |
 | ~~6~~ | ~~Rutas reales de categoría~~ ✅ (no hizo falta esperar a la 4) | 4 | Mediano |
-| 7 | Novedades (modelo, ABM, listado, ficha) | — | **Grande, entrega propia** |
+| ~~7~~ | ~~Novedades (modelo, ABM, listado, ficha)~~ ✅ | — | **Grande, entrega propia** |
 | 8 | SEO fases 4 y 5 (auditoría, CWV, Search Console) | Todo lo anterior | Continuo |
 
 El arreglo del desplegable (#1) se puede hacer ya mismo y por separado: no depende de

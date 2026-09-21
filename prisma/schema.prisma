@@ -48,6 +48,11 @@ enum OrderEventType {
   SHIPPING_COST_SET
 }
 
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -133,7 +138,7 @@ model ProductVariant {
   id            String      @id @default(cuid())
   productId     String
   product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name          String  @default("Único") // ej: "Natural", "Rosa viejo", "50 cm"
+  name          String      @default("Único") // ej: "Natural", "Rosa viejo", "50 cm"
   sku           String?     @unique
   priceOverride Int? // si es null, usa Product.basePrice
   stock         Int         @default(0)
@@ -191,7 +196,7 @@ model Order {
   subtotal     Int
   /// Siempre 0 al crear la orden: el envío se cotiza y se cobra aparte, y el
   /// admin lo completa acá cuando lo acuerda con el cliente.
-  shippingCost Int         @default(0)
+  shippingCost Int          @default(0)
   total        Int
 
   status        OrderStatus   @default(PENDING_PAYMENT)
@@ -267,6 +272,39 @@ model OrderEvent {
   // Única consulta real: la línea de tiempo de un pedido. Un índice más cuesta
   // escritura y espacio sin que nadie lo use.
   @@index([orderId, createdAt])
+}
+
+/// Una nota de la sección Novedades.
+///
+/// El cuerpo se guarda en **Markdown**, no en HTML: el admin escribe con
+/// formato pero lo que entra a la base es texto plano, así que no hay marcado
+/// del navegador que haya que sanitizar antes de renderizarlo.
+model Post {
+  id    String @id @default(cuid())
+  slug  String @unique
+  title String
+
+  /// Bajada. Se muestra en el listado y es la meta description de la nota, así
+  /// que lo que promete el resultado de búsqueda es lo que el lector encuentra.
+  excerpt String
+  body    String
+
+  coverUrl String?
+  coverAlt String?
+
+  status PostStatus @default(DRAFT)
+
+  /// Se sella la primera vez que la nota se publica y no se vuelve a tocar: es
+  /// la fecha que ve el lector y la que ordena el listado. `updatedAt` cambia
+  /// al corregir una coma, así que no sirve para eso. Al despublicar se
+  /// conserva, para que volver a publicar no invente una fecha nueva.
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // La única consulta pública: las publicadas, de la más nueva a la más vieja.
+  @@index([status, publishedAt])
 }
 
 /// Fila única (id = 1) con la configuración editable desde /admin/configuracion.

@@ -5,6 +5,7 @@ import { SITE_EMAIL } from "@/lib/site";
 const FOOTER_LINKS = [
   { href: "/", label: "Inicio" },
   { href: "/productos", label: "Tienda Online" },
+  { href: "/novedades", label: "Novedades" },
   { href: "/quienes-somos", label: "Quiénes Somos" },
   { href: "/como-comprar", label: "Cómo Comprar" },
   { href: "/cambios-y-devoluciones", label: "Política de cambios y devoluciones" },
