@@ -19,7 +19,7 @@ contenido que faltan, y empezar una política de SEO.
 | 6 | Rutas reales de categoría | ✅ hecho |
 | 7 | Novedades | ✅ hecho |
 | 2 | Páginas de contenido | ✅ hecho (textos pendientes de revisión) |
-| 4 | Mega-menú con contenido | ⏳ pendiente, ya no está bloqueado |
+| 4 | Mega-menú con contenido | ✅ hecho |
 | 8 | SEO fases 4 y 5 | ⏳ pendiente |
 
 **Las seis rutas en 404 de la sección 0 ya no existen como tales**: las seis
@@ -101,7 +101,7 @@ Vale arreglarlo en la misma pasada: es el mismo archivo y son pocas líneas.
 
 ---
 
-## 2. Mega-menú con más contenido
+## 2. Mega-menú con más contenido — ✅ hecho
 
 ### Qué hace la referencia
 
@@ -136,7 +136,34 @@ partirlas en grupos es una jerarquía decorativa. El panel puede ganar contenido
 por otro lado: promos, productos destacados con imagen, y accesos directos a
 *Novedades* y *Cómo Comprar*.
 
-### Contenido propuesto para el panel
+### Cómo quedó
+
+> Se tomó la **opción C**, como recomendaba esta sección: una sola columna de
+> categorías, sin inventar una jerarquía que el catálogo todavía no tiene. El panel
+> gana contenido por los otros tres bloques.
+>
+> - **`NavDropdown` pasó a ser solo el envoltorio** (abrir, cerrar, teclado) y el
+>   contenido llega por `children` desde `MegaMenuPanel`, que es un componente de
+>   servidor. Así el panel muestra productos con imagen y precio sin mandar el
+>   catálogo al navegador.
+> - **El panel se renderiza siempre y se oculta con `hidden`**, no se monta al
+>   abrir. Con el montaje condicional sus enlaces no existían en el HTML que recibe
+>   un buscador — y aportar enlaces internos hacia fichas de producto desde todas
+>   las páginas es buena parte de la razón por la que el panel tiene destacados.
+>   Verificado: desde `/ayuda`, que no lista productos, el menú aporta tres enlaces
+>   a fichas. `display: none` además los saca del orden de tabulación.
+> - **La promo sale de `StoreSettings`** (`menuPromoTitle`, `menuPromoSubtitle`,
+>   `menuPromoHref`) y se edita desde /admin/configuracion. Sin título, la promo no
+>   se muestra: apagarla es vaciar un campo, no un deploy. El destino se valida como
+>   ruta interna — aceptar una URL completa dejaría publicar en el menú del sitio un
+>   enlace a cualquier lado desde el panel.
+> - **Los destacados son los tres productos más nuevos**, sin marca manual ni campo
+>   nuevo: se renuevan solos a medida que cargan catálogo.
+> - **La barra superior no sumó "Política de cambios y devoluciones".** El plan lo
+>   pedía, pero con siete entradas la fila se parte en dos líneas. Quedó en la
+>   columna de accesos del panel y en el pie, que es donde se busca.
+
+### Contenido que se había propuesto para el panel
 
 1. **Columna de categorías** — las cinco actuales.
 2. **Columna de accesos** — *Todos los productos*, *Novedades*, *Personalizados*.
@@ -418,7 +445,7 @@ Nada de lo anterior se puede evaluar sin esto:
 | ~~1~~ | ~~Arreglo del desplegable + accesibilidad~~ ✅ | — | Chico |
 | ~~2~~ | ~~Las cinco páginas de contenido~~ ✅ (textos pendientes de revisión) | Contenido del negocio | Mediano |
 | ~~3~~ | ~~SEO fase 1~~ ✅ (se adelantó a la 2: el sitemap simplemente no lista lo que todavía no existe) | — | Mediano |
-| 4 | Mega-menú con contenido | ~~2~~ — ya no está bloqueado | Mediano |
+| ~~4~~ | ~~Mega-menú con contenido~~ ✅ | 2 | Mediano |
 | ~~5~~ | ~~SEO fase 2 (JSON-LD)~~ ✅ completa, `FAQPage` incluido | 3 | Chico |
 | ~~6~~ | ~~Rutas reales de categoría~~ ✅ (no hizo falta esperar a la 4) | 4 | Mediano |
 | ~~7~~ | ~~Novedades (modelo, ABM, listado, ficha)~~ ✅ | — | **Grande, entrega propia** |

@@ -24,6 +24,9 @@ export async function updateStoreSettings(
     whatsappNumber: parsed.data.whatsappNumber,
     bankAccountInfo: parsed.data.bankAccountInfo,
     announcementText: parsed.data.announcementText || null,
+    menuPromoTitle: parsed.data.menuPromoTitle || null,
+    menuPromoSubtitle: parsed.data.menuPromoSubtitle || null,
+    menuPromoHref: parsed.data.menuPromoHref || null,
   };
 
   await prisma.storeSettings.upsert({
@@ -32,7 +35,7 @@ export async function updateStoreSettings(
     create: { id: 1, ...data },
   });
 
-  // El texto del anuncio sale en la barra superior de todo el storefront.
+  // El anuncio y la promo del menú salen en el layout de todo el storefront.
   revalidatePath("/", "layout");
   revalidatePath("/admin/configuracion");
   return { ok: true, message: "Configuración guardada." };

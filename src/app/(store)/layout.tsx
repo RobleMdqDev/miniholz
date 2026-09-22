@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getCategories } from "@/lib/catalog";
+import { getCategories, getProducts } from "@/lib/catalog";
 import { getStoreSettings } from "@/lib/orders";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CartSync } from "@/components/cart/CartSync";
@@ -17,11 +17,24 @@ const FIXED_TOPBAR_MESSAGES = [
 ];
 
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {
-  const [session, categories, settings] = await Promise.all([
+  const [session, categories, settings, featured] = await Promise.all([
     auth(),
     getCategories(),
     getStoreSettings(),
+    // Los tres productos más nuevos, para el bloque destacado del mega-menú.
+    getProducts({ take: 3 }),
   ]);
+
+  // Sin título no hay promo: es lo que permite apagarla desde el panel dejando
+  // el campo vacío, sin tener que tocar código.
+  const promo =
+    settings?.menuPromoTitle && settings.menuPromoHref
+      ? {
+          title: settings.menuPromoTitle,
+          subtitle: settings.menuPromoSubtitle,
+          href: settings.menuPromoHref,
+        }
+      : null;
 
   const messages = settings?.announcementText
     ? [settings.announcementText, ...FIXED_TOPBAR_MESSAGES]
@@ -35,7 +48,7 @@ export default async function StoreLayout({ children }: { children: React.ReactN
       <JsonLd data={websiteJsonLd()} />
 
       <TopBar messages={messages} />
-      <Header user={session?.user} categories={categories} />
+      <Header user={session?.user} categories={categories} featured={featured} promo={promo} />
       <main className="flex-1">{children}</main>
       <Footer />
       <CartSync userId={session?.user.id ?? null} />

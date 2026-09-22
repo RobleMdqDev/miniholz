@@ -313,4 +313,12 @@ model StoreSettings {
   whatsappNumber   String
   bankAccountInfo  String // texto libre: CBU/alias/titular/banco
   announcementText String?
+
+  /// Promo destacada del mega-menú de "Tienda Online". Va en la base y no en el
+  /// código para que cambiar una campaña no sea un deploy. Si el título está
+  /// vacío, la columna de promo directamente no se muestra.
+  menuPromoTitle    String?
+  menuPromoSubtitle String?
+  /// Ruta interna a la que lleva la promo, p. ej. /productos/categoria/percheros
+  menuPromoHref     String?
 }

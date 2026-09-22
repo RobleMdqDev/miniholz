@@ -24,6 +24,9 @@ export default async function AdminSettingsPage() {
           whatsappNumber: settings?.whatsappNumber ?? "",
           bankAccountInfo: settings?.bankAccountInfo ?? "",
           announcementText: settings?.announcementText ?? null,
+          menuPromoTitle: settings?.menuPromoTitle ?? null,
+          menuPromoSubtitle: settings?.menuPromoSubtitle ?? null,
+          menuPromoHref: settings?.menuPromoHref ?? null,
         }}
       />
     </div>

@@ -101,4 +101,27 @@ export const storeSettingsSchema = z.object({
     .trim()
     .max(600, { error: "El texto es demasiado largo." }),
   announcementText: z.string().trim().max(160).nullable(),
+
+  menuPromoTitle: z.string().trim().max(40, { error: "El título es demasiado largo." }).nullable(),
+  menuPromoSubtitle: z
+    .string()
+    .trim()
+    .max(80, { error: "La bajada es demasiado larga." })
+    .nullable(),
+  /**
+   * Solo rutas internas. Aceptar una URL completa dejaría poner en el menú del
+   * sitio un enlace a cualquier lado desde el panel, que es más poder del que
+   * esta configuración necesita.
+   */
+  menuPromoHref: z
+    .string()
+    .trim()
+    .regex(/^\/[a-zA-Z0-9\-/_?=&.]*$/, {
+      error: "Tiene que ser una ruta del sitio, empezando con /.",
+    })
+    .max(200)
+    .nullable(),
+}).refine((data) => !data.menuPromoTitle || Boolean(data.menuPromoHref), {
+  error: "Si la promo tiene título, indicá a dónde lleva.",
+  path: ["menuPromoHref"],
 });

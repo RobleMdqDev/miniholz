@@ -8,12 +8,22 @@ import { FieldError, FormError, inputClassName, labelClassName } from "@/compone
 export function StoreSettingsForm({
   settings,
 }: {
-  settings: { whatsappNumber: string; bankAccountInfo: string; announcementText: string | null };
+  settings: {
+    whatsappNumber: string;
+    bankAccountInfo: string;
+    announcementText: string | null;
+    menuPromoTitle: string | null;
+    menuPromoSubtitle: string | null;
+    menuPromoHref: string | null;
+  };
 }) {
   const router = useRouter();
   const [whatsappNumber, setWhatsappNumber] = useState(settings.whatsappNumber);
   const [bankAccountInfo, setBankAccountInfo] = useState(settings.bankAccountInfo);
   const [announcementText, setAnnouncementText] = useState(settings.announcementText ?? "");
+  const [menuPromoTitle, setMenuPromoTitle] = useState(settings.menuPromoTitle ?? "");
+  const [menuPromoSubtitle, setMenuPromoSubtitle] = useState(settings.menuPromoSubtitle ?? "");
+  const [menuPromoHref, setMenuPromoHref] = useState(settings.menuPromoHref ?? "");
 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -31,6 +41,9 @@ export function StoreSettingsForm({
         whatsappNumber,
         bankAccountInfo,
         announcementText: announcementText.trim() || null,
+        menuPromoTitle: menuPromoTitle.trim() || null,
+        menuPromoSubtitle: menuPromoSubtitle.trim() || null,
+        menuPromoHref: menuPromoHref.trim() || null,
       });
 
       if (!result.ok) {
@@ -100,6 +113,63 @@ export function StoreSettingsForm({
         </p>
         <FieldError messages={fieldErrors.announcementText} />
       </div>
+
+      <fieldset className="space-y-4 rounded-xl border border-brand-200 p-4">
+        <legend className="px-2 text-sm font-semibold text-brand-800">
+          Promo del menú <span className="font-normal text-brand-600">(opcional)</span>
+        </legend>
+        <p className="text-xs text-brand-600">
+          Se muestra destacada dentro del desplegable de “Tienda Online”. Si dejás el título
+          vacío, la promo no aparece.
+        </p>
+
+        <div>
+          <label htmlFor="menuPromoTitle" className={labelClassName}>
+            Título
+          </label>
+          <input
+            id="menuPromoTitle"
+            value={menuPromoTitle}
+            onChange={(event) => setMenuPromoTitle(event.target.value)}
+            className={inputClassName}
+            maxLength={40}
+            placeholder="20% OFF en percheros"
+          />
+          <FieldError messages={fieldErrors.menuPromoTitle} />
+        </div>
+
+        <div>
+          <label htmlFor="menuPromoSubtitle" className={labelClassName}>
+            Bajada
+          </label>
+          <input
+            id="menuPromoSubtitle"
+            value={menuPromoSubtitle}
+            onChange={(event) => setMenuPromoSubtitle(event.target.value)}
+            className={inputClassName}
+            maxLength={80}
+            placeholder="Hasta el 30 de septiembre"
+          />
+          <FieldError messages={fieldErrors.menuPromoSubtitle} />
+        </div>
+
+        <div>
+          <label htmlFor="menuPromoHref" className={labelClassName}>
+            A dónde lleva
+          </label>
+          <input
+            id="menuPromoHref"
+            value={menuPromoHref}
+            onChange={(event) => setMenuPromoHref(event.target.value)}
+            className={inputClassName}
+            placeholder="/productos/categoria/percheros"
+          />
+          <p className="mt-1 text-xs text-brand-600">
+            Una ruta del sitio, empezando con “/”. No se aceptan enlaces externos.
+          </p>
+          <FieldError messages={fieldErrors.menuPromoHref} />
+        </div>
+      </fieldset>
 
       <FormError message={error ?? undefined} />
       {message && (

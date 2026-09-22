@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-
-type NavDropdownItem = { href: string; label: string };
 
 /**
  * Margen para el movimiento en diagonal: salir del botón por un costado y
@@ -14,7 +11,20 @@ type NavDropdownItem = { href: string; label: string };
  */
 const CLOSE_DELAY_MS = 120;
 
-export function NavDropdown({ label, items }: { label: string; items: NavDropdownItem[] }) {
+/**
+ * El envoltorio del mega-menú: se ocupa solo de abrir, cerrar y del teclado.
+ *
+ * El contenido llega por `children` y se renderiza en el servidor. Eso es lo
+ * que permite que el panel muestre productos con sus imágenes y precios sin
+ * arrastrar esa data al bundle del navegador ni volver a pedirla.
+ */
+export function NavDropdown({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -91,8 +101,7 @@ export function NavDropdown({ label, items }: { label: string; items: NavDropdow
         }}
         aria-expanded={open}
         aria-haspopup="true"
-        // Solo cuando el panel existe: apuntar a un id ausente es inválido.
-        aria-controls={open ? panelId : undefined}
+        aria-controls={panelId}
         className="flex items-center gap-1 hover:text-gold-700"
       >
         {label}
@@ -102,29 +111,29 @@ export function NavDropdown({ label, items }: { label: string; items: NavDropdow
         />
       </button>
 
-      {/* Panel a todo el ancho de la página, como el mega-menú de referencia.
-          Se posiciona contra el `<nav className="relative">` del header y no
-          contra este div, que es justamente lo que le permite ocupar todo el
-          ancho en vez del ancho del botón. */}
-      {open && (
-        <div
-          id={panelId}
-          className="absolute left-1/2 top-full w-screen -translate-x-1/2 border-t border-brand-200 bg-brand-50/95 py-6 text-brand-900 shadow-lg"
-        >
-          <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-4 px-4 sm:flex sm:flex-wrap sm:gap-x-10">
-            {items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={closeNow}
-                className="text-sm font-semibold uppercase tracking-[1px] hover:text-gold-700"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Panel a todo el ancho de la página. Se posiciona contra el
+          `<nav className="relative">` del header y no contra este div, que es
+          justamente lo que le permite ocupar todo el ancho en vez del ancho del
+          botón.
+
+          El `onClick` en el contenedor cierra el panel al navegar: los clicks de
+          los enlaces burbujean hasta acá. Así el contenido puede venir del
+          servidor, que no tiene forma de llamar a `closeNow`.
+
+          Se renderiza siempre y se oculta con `hidden`, en vez de montarlo al
+          abrir. Con el montaje condicional, los enlaces del panel —incluidos los
+          que van a fichas de producto— no existían en el HTML que recibe un
+          buscador, y aportar esos enlaces internos es buena parte de la razón
+          por la que el panel tiene contenido. `display: none` además los saca
+          del orden de tabulación mientras está cerrado, que es lo que
+          corresponde. */}
+      <div
+        id={panelId}
+        onClick={closeNow}
+        className={`absolute left-1/2 top-full w-screen -translate-x-1/2 border-t border-brand-200 bg-brand-50/95 py-6 text-brand-900 shadow-lg ${open ? "" : "hidden"}`}
+      >
+        {children}
+      </div>
     </div>
   );
 }
