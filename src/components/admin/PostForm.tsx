@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPost, deletePost, updatePost } from "@/actions/post.actions";
-import { slugify } from "@/lib/slug";
+import { slugify, slugifyWhileTyping } from "@/lib/slug";
 import type { AdminPostDetail } from "@/lib/posts";
 import type { PostInput } from "@/lib/validations/post";
 import {
@@ -112,7 +112,8 @@ export function PostForm({ post }: { post?: AdminPostDetail }) {
             id="slug"
             value={slug}
             readOnly={slugLocked}
-            onChange={(event) => setSlug(slugify(event.target.value))}
+            onChange={(event) => setSlug(slugifyWhileTyping(event.target.value))}
+            onBlur={() => setSlug(slugify(slug))}
             aria-invalid={Boolean(fieldErrors.slug)}
             className={`${inputClassName} ${slugLocked ? "bg-brand-50 text-brand-600" : ""}`}
           />

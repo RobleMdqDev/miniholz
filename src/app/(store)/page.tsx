@@ -24,6 +24,15 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* La home no tenía `h1`: la jerarquía arrancaba en el `h2` del carrusel.
+          Va oculto a la vista porque no hay dónde meter un título visible sin
+          rehacer el diseño, y el carrusel ya cumple ese rol para el que mira.
+          No es texto escondido para el buscador: describe exactamente lo que la
+          página muestra, que es la condición para que sea legítimo. */}
+      <h1 className="sr-only">
+        MiniHolz — mesas, sillas y accesorios de madera personalizados para chicos
+      </h1>
+
       <HeroCarousel />
 
       <section className="border-y border-slate-100 bg-white">
@@ -40,7 +49,10 @@ export default async function HomePage() {
 
       <section className="mx-auto max-w-7xl px-4 py-12">
         <div className="mb-6 flex items-baseline justify-between gap-4">
-          <h2 className="text-2xl font-bold text-brand-900">Novedades</h2>
+          {/* Antes decía "Novedades". Ahora eso es una sección propia del sitio
+              —notas del taller—, y este bloque muestra productos: dos cosas
+              distintas con el mismo nombre confunden al visitante y al buscador. */}
+          <h2 className="text-2xl font-bold text-brand-900">Lo último</h2>
           <Link href="/productos" className="text-sm font-bold text-gold-700 hover:underline">
             Ver toda la tienda
           </Link>

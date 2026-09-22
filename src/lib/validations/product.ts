@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RESERVED_PRODUCT_SLUGS, slugField } from "@/lib/validations/slug";
 
 /** Los precios se escriben en pesos en el formulario y se guardan en centavos. */
 export const priceInPesosSchema = z
@@ -30,14 +31,7 @@ export const productSchema = z
       .trim()
       .min(2, { error: "Completá el nombre del producto." })
       .max(120, { error: "El nombre es demasiado largo." }),
-    slug: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9-]+$/, {
-        error: "El slug solo puede tener minúsculas, números y guiones.",
-      })
-      .min(2, { error: "Completá el slug." })
-      .max(80),
+    slug: slugField({ reserved: RESERVED_PRODUCT_SLUGS }),
     description: z
       .string()
       .trim()
@@ -80,12 +74,7 @@ export const categorySchema = z.object({
     .trim()
     .min(2, { error: "Completá el nombre de la categoría." })
     .max(60, { error: "El nombre es demasiado largo." }),
-  slug: z
-    .string()
-    .trim()
-    .regex(/^[a-z0-9-]+$/, { error: "El slug solo puede tener minúsculas, números y guiones." })
-    .min(2)
-    .max(60),
+  slug: slugField({ max: 60 }),
   position: z.number().int().min(0).max(999),
 });
 

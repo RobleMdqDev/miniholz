@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { deleteCategory, saveCategory } from "@/actions/category.actions";
-import { slugify } from "@/lib/slug";
+import { slugify, slugifyWhileTyping } from "@/lib/slug";
 import { FormError, inputClassName } from "@/components/ui/form";
 
 type Category = {
@@ -45,7 +45,7 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
     run(async () => {
       const result = await saveCategory({
         name: newName,
-        slug: newSlug || slugify(newName),
+        slug: slugify(newSlug) || slugify(newName),
         position: categories.length + 1,
       });
       if (result.ok) {
@@ -88,8 +88,9 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
             value={newSlug}
             onChange={(event) => {
               setNewSlugTouched(true);
-              setNewSlug(event.target.value);
+              setNewSlug(slugifyWhileTyping(event.target.value));
             }}
+            onBlur={() => setNewSlug(slugify(newSlug))}
             required
             className={inputClassName}
             placeholder="mesas-y-sillas"
@@ -179,7 +180,12 @@ function CategoryRow({
       </div>
       <div>
         <label className="mb-1 block text-xs font-semibold text-brand-600">Slug</label>
-        <input value={slug} onChange={(e) => setSlug(e.target.value)} className={inputClassName} />
+        <input
+          value={slug}
+          onChange={(e) => setSlug(slugifyWhileTyping(e.target.value))}
+          onBlur={() => setSlug(slugify(slug))}
+          className={inputClassName}
+        />
       </div>
       <div>
         <label className="mb-1 block text-xs font-semibold text-brand-600">Orden</label>

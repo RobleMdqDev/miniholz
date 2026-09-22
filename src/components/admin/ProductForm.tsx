@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
 import { createProduct, deleteProduct, updateProduct } from "@/actions/product.actions";
 import { centsToPesos } from "@/lib/pricing";
-import { slugify } from "@/lib/slug";
+import { slugify, slugifyWhileTyping } from "@/lib/slug";
 import type { ProductInput } from "@/lib/validations/product";
 import { FieldError, FormError, inputClassName, labelClassName } from "@/components/ui/form";
 
@@ -185,8 +185,11 @@ export function ProductForm({
             value={slug}
             onChange={(event) => {
               setSlugTouched(true);
-              setSlug(event.target.value);
+              setSlug(slugifyWhileTyping(event.target.value));
             }}
+            // Al salir del campo se normaliza: es el momento en que un guion
+            // final ya no es "algo que se está escribiendo" sino un error.
+            onBlur={() => setSlug(slugify(slug))}
             required
             className={inputClassName}
             placeholder="mesa-y-silla-personalizada"
