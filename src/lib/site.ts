@@ -76,6 +76,23 @@ export function siteUrl(): string {
 }
 
 /**
+ * Si el sitio puede aparecer en buscadores.
+ *
+ * **Está apagado por defecto y hay que encenderlo a propósito**, con
+ * `SITE_INDEXABLE="true"` en el entorno. La asimetría es deliberada: olvidarse
+ * de encenderlo se nota enseguida —el sitio no aparece en Google y alguien
+ * pregunta— mientras que olvidarse de apagarlo publica en el índice páginas que
+ * todavía dicen "Texto provisorio", y sacarlas después depende de que Google
+ * vuelva a pasar.
+ *
+ * De paso deja fuera del índice a los entornos de desarrollo y a los deploys de
+ * preview, que no tienen la variable.
+ */
+export function isIndexable(): boolean {
+  return process.env.SITE_INDEXABLE === "true";
+}
+
+/**
  * Absolutiza una ruta del sitio. El sitemap necesita URLs absolutas sí o sí; la
  * metadata no, porque Next resuelve las relativas contra `metadataBase`. Las
  * imágenes del catálogo llegan relativas (disco local, seed) o absolutas (Blob

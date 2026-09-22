@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
-import { SITE_DESCRIPTION, SITE_NAME, siteUrl, socialMetadata } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_NAME, isIndexable, siteUrl, socialMetadata } from "@/lib/site";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -18,6 +18,9 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
+  // Mientras el contenido no esté aprobado, el sitio entero sale con `noindex`.
+  // Se hereda a todas las páginas, así que alcanza con declararlo acá.
+  ...(isIndexable() ? {} : { robots: { index: false, follow: false } }),
   ...socialMetadata({ title: SITE_NAME, description: SITE_DESCRIPTION }),
   // Acá **no** va `alternates.canonical`. La metadata se hereda hacia abajo y
   // se mezcla de forma superficial, así que una canónica en la raíz haría que
