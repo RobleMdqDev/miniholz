@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { slugField } from "@/lib/validations/slug";
 
 export const postStatusSchema = z.enum(["DRAFT", "PUBLISHED"]);
 
@@ -10,12 +11,7 @@ export const postSchema = z.object({
     .trim()
     .min(3, { error: "Completá el título de la nota." })
     .max(140, { error: "El título es demasiado largo." }),
-  slug: z
-    .string()
-    .trim()
-    .regex(/^[a-z0-9-]+$/, { error: "El slug solo puede tener minúsculas, números y guiones." })
-    .min(3, { error: "Completá el slug." })
-    .max(80),
+  slug: slugField(),
   /**
    * La bajada es obligatoria y corta a propósito: es lo que se ve en el listado
    * y lo que sale como descripción en el resultado de búsqueda. Dejarla salir
