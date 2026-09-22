@@ -23,7 +23,7 @@ const SLIDES: Slide[] = [
     title: "Mesas y sillas con el nombre de tu bebé",
     description: "Diseños de madera personalizados, en los colores que elijas.",
     ctaLabel: "Ver mesas y sillas",
-    ctaHref: "/productos?categoria=mesas-y-sillas",
+    ctaHref: "/productos/categoria/mesas-y-sillas",
     gradient: "from-brand-200 to-brand-400",
   },
   {

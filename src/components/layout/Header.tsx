@@ -3,8 +3,10 @@ import Link from "next/link";
 import { MessageCircleQuestion, Search, ShieldCheck, User } from "lucide-react";
 import type { Role } from "@/generated/prisma/enums";
 import { CartIcon } from "@/components/cart/CartIcon";
+import type { ProductCardData } from "@/lib/catalog";
 import { MobileMenu } from "./MobileMenu";
 import { NavDropdown } from "./NavDropdown";
+import { MegaMenuPanel, type MenuPromo } from "./MegaMenuPanel";
 
 type HeaderUser = { name?: string | null; role: Role };
 type HeaderCategory = { slug: string; name: string };
@@ -12,6 +14,7 @@ type HeaderCategory = { slug: string; name: string };
 const NAV_LINKS_BEFORE = [{ href: "/", label: "Inicio" }];
 
 const NAV_LINKS_AFTER = [
+  { href: "/novedades", label: "Novedades" },
   { href: "/quienes-somos", label: "Quiénes Somos" },
   { href: "/como-comprar", label: "Cómo Comprar" },
   { href: "/contacto", label: "Contacto" },
@@ -20,13 +23,17 @@ const NAV_LINKS_AFTER = [
 export function Header({
   user,
   categories,
+  featured,
+  promo,
 }: {
   user?: HeaderUser | null;
   categories: HeaderCategory[];
+  featured: ProductCardData[];
+  promo: MenuPromo | null;
 }) {
   const firstName = user?.name?.trim().split(" ")[0];
   const storeCategories = categories.map((category) => ({
-    href: `/productos?categoria=${category.slug}`,
+    href: `/productos/categoria/${category.slug}`,
     label: category.name,
   }));
 
@@ -107,7 +114,9 @@ export function Header({
                 {link.label}
               </Link>
             ))}
-            <NavDropdown label="Tienda Online" items={storeCategories} />
+            <NavDropdown label="Tienda Online">
+              <MegaMenuPanel categories={storeCategories} featured={featured} promo={promo} />
+            </NavDropdown>
             {NAV_LINKS_AFTER.map((link) => (
               <Link
                 key={link.href}

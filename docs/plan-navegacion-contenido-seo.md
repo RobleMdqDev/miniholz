@@ -1,6 +1,7 @@
 # Plan: navegación, páginas de contenido y SEO
 
-Estado: **propuesta, sin implementar**. Escrito el 2026-09-18.
+Escrito el 2026-09-18. **Parcialmente implementado el 2026-09-21** (ver "Estado de
+avance").
 
 Cubre cuatro cosas que llegaron juntas en un mismo pedido: arreglar el desplegable
 del menú, convertirlo en un mega-menú con más contenido, crear las páginas de
@@ -8,7 +9,26 @@ contenido que faltan, y empezar una política de SEO.
 
 ---
 
-## 0. Hallazgo previo: cinco páginas enlazadas no existen
+## Estado de avance
+
+| # | Entrega | Estado |
+|---|---|---|
+| 1 | Arreglo del desplegable + accesibilidad | ✅ hecho |
+| 3 | SEO fase 1 (metadataBase, robots, sitemap, metadata por página) | ✅ hecho |
+| 5 | SEO fase 2 (JSON-LD) | ✅ hecho, `FAQPage` incluido |
+| 6 | Rutas reales de categoría | ✅ hecho |
+| 7 | Novedades | ✅ hecho |
+| 2 | Páginas de contenido | ✅ hecho (textos pendientes de revisión) |
+| 4 | Mega-menú con contenido | ✅ hecho |
+| 8 | SEO fases 4 y 5 | ⏳ pendiente |
+
+**Las seis rutas en 404 de la sección 0 ya no existen como tales**: las seis
+responden 200 y están en el sitemap. Un recorrido por todos los enlaces internos
+del sitio no encuentra ninguno roto.
+
+---
+
+## 0. Hallazgo previo: cinco páginas enlazadas no existen — ✅ resuelto
 
 Antes que nada, esto:
 
@@ -33,7 +53,13 @@ el menú**, porque hoy el menú promete contenido que no existe.
 
 ---
 
-## 1. El desplegable se cierra al pasar el mouse
+## 1. El desplegable se cierra al pasar el mouse — ✅ resuelto
+
+> Implementado en `src/components/layout/NavDropdown.tsx`: se aplicó el arreglo
+> geométrico (`py-3 -my-3`), el cierre diferido de 120 ms cancelable, y los cuatro
+> puntos de accesibilidad. El botón pasó a alternar y se quitó el `onFocus` que
+> abría: el foco se dispara antes que el click, así que con un botón que alterna
+> el click lo habría cerrado de inmediato. Verificado en el navegador.
 
 ### Diagnóstico
 
@@ -75,7 +101,7 @@ Vale arreglarlo en la misma pasada: es el mismo archivo y son pocas líneas.
 
 ---
 
-## 2. Mega-menú con más contenido
+## 2. Mega-menú con más contenido — ✅ hecho
 
 ### Qué hace la referencia
 
@@ -110,7 +136,34 @@ partirlas en grupos es una jerarquía decorativa. El panel puede ganar contenido
 por otro lado: promos, productos destacados con imagen, y accesos directos a
 *Novedades* y *Cómo Comprar*.
 
-### Contenido propuesto para el panel
+### Cómo quedó
+
+> Se tomó la **opción C**, como recomendaba esta sección: una sola columna de
+> categorías, sin inventar una jerarquía que el catálogo todavía no tiene. El panel
+> gana contenido por los otros tres bloques.
+>
+> - **`NavDropdown` pasó a ser solo el envoltorio** (abrir, cerrar, teclado) y el
+>   contenido llega por `children` desde `MegaMenuPanel`, que es un componente de
+>   servidor. Así el panel muestra productos con imagen y precio sin mandar el
+>   catálogo al navegador.
+> - **El panel se renderiza siempre y se oculta con `hidden`**, no se monta al
+>   abrir. Con el montaje condicional sus enlaces no existían en el HTML que recibe
+>   un buscador — y aportar enlaces internos hacia fichas de producto desde todas
+>   las páginas es buena parte de la razón por la que el panel tiene destacados.
+>   Verificado: desde `/ayuda`, que no lista productos, el menú aporta tres enlaces
+>   a fichas. `display: none` además los saca del orden de tabulación.
+> - **La promo sale de `StoreSettings`** (`menuPromoTitle`, `menuPromoSubtitle`,
+>   `menuPromoHref`) y se edita desde /admin/configuracion. Sin título, la promo no
+>   se muestra: apagarla es vaciar un campo, no un deploy. El destino se valida como
+>   ruta interna — aceptar una URL completa dejaría publicar en el menú del sitio un
+>   enlace a cualquier lado desde el panel.
+> - **Los destacados son los tres productos más nuevos**, sin marca manual ni campo
+>   nuevo: se renuevan solos a medida que cargan catálogo.
+> - **La barra superior no sumó "Política de cambios y devoluciones".** El plan lo
+>   pedía, pero con siete entradas la fila se parte en dos líneas. Quedó en la
+>   columna de accesos del panel y en el pie, que es donde se busca.
+
+### Contenido que se había propuesto para el panel
 
 1. **Columna de categorías** — las cinco actuales.
 2. **Columna de accesos** — *Todos los productos*, *Novedades*, *Personalizados*.
@@ -142,7 +195,38 @@ Seis rutas nuevas bajo `src/app/(store)/`.
 | `/ayuda` | Preguntas frecuentes |
 | `/novedades` + `/novedades/[slug]` | Notas y novedades |
 
-### Dos decisiones que hay que tomar antes de escribir una línea
+### Cómo quedó — ✅ hecho
+
+> Las cinco páginas existen, más `/novedades`. Se resolvió así:
+>
+> - **La ruta es `/cambios-y-devoluciones`**, no `/politica-de-cambios-y-devoluciones`:
+>   era la que ya enlazaba el pie, y es también la que usa la referencia del rubro.
+> - **El contenido está en código**, como recomendaba esta misma sección. Los datos
+>   operativos que se repiten en varias páginas (plazo de producción, plazos legales)
+>   viven en `src/lib/store-facts.ts` para que no queden tres versiones distintas.
+> - **La mayor parte no es relleno.** Medios de pago, cuotas, descuento por
+>   transferencia, cómo funciona el envío, la personalización, el alta como invitado
+>   y el seguimiento del pedido salen de cómo está construida la app; el descuento y
+>   las cuotas se leen de `pricing.ts`, así que el texto no puede desincronizarse del
+>   código. Los plazos, la zona de envío y el criterio de devoluciones los definió el
+>   cliente.
+> - **Lo que sigue siendo provisorio está marcado en la propia página** con un aviso
+>   visible (`TextoProvisorio`), no en un comentario: la historia del taller, los
+>   horarios de atención y los enlaces a redes. Se borra una línea por página cuando
+>   el texto esté aprobado.
+> - **El formulario de contacto arma el mensaje y lo abre en WhatsApp**, no lo manda
+>   por mail: sin un proveedor de correo configurado, lo único que se podía construir
+>   era un formulario que traga los mensajes en silencio.
+> - **Botón de arrepentimiento** en el pie de toda la tienda, como pide la Resolución
+>   424/2020, apuntando a `/contacto#arrepentimiento`.
+> - **`FAQPage`** (el pendiente de la fase 2) sale de las mismas preguntas que se ven
+>   en `/ayuda`, desde una sola fuente.
+>
+> ⚠️ **La política de cambios y devoluciones tiene efectos legales y sigue sin
+> revisión profesional.** Los plazos respetan la Ley 24.240, pero conviene que la lea
+> alguien con criterio legal antes de publicarla.
+
+### Las decisiones que había que tomar antes de escribir una línea
 
 **Quién es dueño del contenido: ¿código o base de datos?**
 
@@ -164,9 +248,34 @@ maqueta y los textos de relleno, pero:
 - Plazos de producción, costos y zonas de envío, horarios y datos de contacto son datos
   del negocio. Inventarlos sería peor que dejar la página para después.
 
-### Novedades, que es un proyecto aparte
+### Novedades, que es un proyecto aparte — ✅ hecho
 
-No es una página: es un modelo de contenido. Necesita modelo `Post` en Prisma (slug,
+> Implementado. El modelo `Post` (migración `agrega_novedades`), el ABM en
+> `/admin/novedades`, el listado paginado en `/novedades` y la ficha en
+> `/novedades/[slug]`, con `BlogPosting` + `BreadcrumbList` y las notas publicadas
+> en el sitemap. Decisiones que conviene conocer:
+>
+> - **El cuerpo se guarda en Markdown**, no en HTML, y se renderiza con
+>   `react-markdown` **sin** `rehype-raw`. Eso es lo que hace que el texto que
+>   escribe el admin no pueda inyectar marcado en la página: un `<script>` en el
+>   cuerpo sale como texto visible, no como etiqueta. Si algún día hace falta HTML
+>   dentro de una nota, la respuesta no es habilitar `rehype-raw` sino sanitizar.
+> - **La tienda nunca ve un borrador.** El filtro no se repite en cada consulta,
+>   vive en `publishedWhere()` dentro de `src/lib/posts.ts`, para que agregar una
+>   consulta nueva no sea una oportunidad de olvidárselo. Filtra por estado y
+>   también por fecha, así que una nota se puede dejar programada.
+> - **`publishedAt` se sella al publicar por primera vez** y no se vuelve a tocar,
+>   ni siquiera al despublicar y volver a publicar: si se borrara, una nota vieja
+>   reaparecería al tope del listado como si fuera nueva.
+> - **La portada se sube al storage propio** en vez de aceptar una URL pegada:
+>   `next/image` solo optimiza los dominios declarados en `next.config.ts`, y una
+>   URL externa daría 400 en producción.
+>
+> Lo que **no** quedó probado con clicks: el formulario del panel. Entrar exige una
+> sesión de admin, y para eso hay que tipear una contraseña. Conviene que alguien
+> cree una nota de punta a punta antes de darlo por cerrado.
+
+El diagnóstico original decía: no es una página, es un modelo de contenido. Necesita modelo `Post` en Prisma (slug,
 título, bajada, cuerpo, portada, estado, fecha de publicación), migración, ABM en el
 admin, editor de texto enriquecido o MDX, listado paginado y ficha con su metadata.
 
@@ -188,34 +297,104 @@ Hay título con plantilla (`%s | MiniHolz`) y una descripción por defecto. Nada
 ✗ metadata por producto ✗ breadcrumbs
 ```
 
-### Fase 1 — Base técnica
+### Fase 1 — Base técnica — ✅ hecha
 
 Sin esto, lo demás no rinde.
 
-1. **`metadataBase`** en el layout raíz, desde `NEXT_PUBLIC_BASE_URL`. Sin esto, las
-   URLs de OpenGraph y las canónicas salen relativas y los validadores las descartan.
-2. **`app/robots.ts`** — permitir todo salvo `/admin`, `/cuenta`, `/checkout`, `/api`,
-   y declarar el sitemap.
-3. **`app/sitemap.ts`** dinámico: estáticas + productos activos + categorías, con
-   `lastModified` real desde `updatedAt`.
-4. **Metadata por página.** Hoy las fichas de producto no tienen `generateMetadata`:
-   todas comparten título y descripción, que es el error de SEO más caro en un
-   e-commerce. Cada producto necesita título, descripción propia y `alternates.canonical`.
-5. **`opengraph-image`** por producto y una imagen por defecto para el resto.
+1. ✅ **`metadataBase`** en el layout raíz, desde `NEXT_PUBLIC_BASE_URL` (vía
+   `siteUrl()` en `src/lib/site.ts`, que ahora es la única fuente del dominio: antes
+   la misma lógica vivía suelta en `mercadopago.ts`).
+2. ✅ **`app/robots.ts`** — todo permitido salvo `/admin`, `/cuenta`, `/checkout`,
+   `/carrito`, `/login`, `/registro` y `/api`, con el sitemap declarado.
+3. ✅ **`app/sitemap.ts`** con `revalidate = 3600`: inicio, listado, las cinco
+   categorías y los productos activos con su `updatedAt` y su primera imagen. La
+   revalidación importa porque `sitemap.ts` es un Route Handler cacheado — sin ella
+   un producto nuevo no aparecería hasta el siguiente deploy, y el catálogo lo edita
+   el admin, no el repositorio.
+4. ✅ **Metadata por página.** Corrección al diagnóstico original: las fichas de
+   producto **sí** tenían `generateMetadata` con título y descripción; lo que les
+   faltaba era la canónica y OpenGraph. El problema real de títulos duplicados
+   estaba en el **listado**, donde las cinco categorías compartían "Tienda online".
+   Ahora cada filtro conocido tiene título, descripción y canónica propios, y un
+   parámetro inventado canoniza al listado completo.
+5. ⚠️ **Imágenes para compartir**: cada producto usa su propia foto y el resto del
+   sitio el logo. Queda pendiente **diseñar una pieza de 1200×630**, que es la
+   proporción que prefieren las redes; hoy el logo es cuadrado y lo recortan.
+   Se cambia en un solo lugar (`SITE_OG_IMAGE`).
 
-### Fase 2 — Datos estructurados (JSON-LD)
+> Nota de implementación, por si toca volver acá: la metadata se hereda hacia abajo
+> y se mezcla de forma **superficial**. Por eso la canónica **no** puede ir en el
+> layout raíz (todas las páginas apuntarían al inicio) y por eso `openGraph` y
+> `twitter` se arman juntos desde `socialMetadata()`: declarar uno y olvidarse del
+> otro deja las tarjetas de X con el nombre y el logo del sitio en vez de los del
+> producto. Pasó durante esta misma implementación.
 
-| Esquema | Dónde | Para qué |
+### Fase 2 — Datos estructurados (JSON-LD) — ✅ hecha
+
+Los objetos viven en `src/lib/json-ld.ts` y los renderiza `src/components/seo/JsonLd.tsx`.
+
+| Esquema | Dónde | Estado |
 |---|---|---|
-| `Organization` / `LocalBusiness` | layout | Panel de conocimiento, datos de contacto |
-| `WebSite` + `SearchAction` | layout | Caja de búsqueda en Google |
-| `Product` + `Offer` | ficha de producto | **Precio, stock y cuotas en el resultado de búsqueda** |
-| `BreadcrumbList` | producto y categoría | Miga de pan en el resultado |
-| `FAQPage` | ayuda y cómo comprar | Resultados enriquecidos |
+| `Organization` | layout de la tienda | ✅ |
+| `WebSite` | layout de la tienda | ✅ **sin** `SearchAction` (ver abajo) |
+| `Product` + `Offer` / `AggregateOffer` | ficha de producto | ✅ |
+| `BreadcrumbList` | producto y categoría | ✅ |
+| `FAQPage` | `/ayuda` | ✅ |
 
-El de `Product` es el de mayor impacto directo en clics.
+Tres decisiones que conviene no revertir sin pensarlas:
 
-### Fase 3 — Arquitectura de URLs
+- **`Organization`, no `LocalBusiness`.** No hay dirección física ni horario de
+  atención, y un `LocalBusiness` sin dirección es marcado inválido. Si algún día hay
+  local o punto de retiro, cambia ahí.
+- **Sin `SearchAction`.** El buscador del header es hoy un input decorativo: no tiene
+  formulario, ni nombre de parámetro, ni ruta de resultados. Declarar una URL de
+  búsqueda que no busca nada es justo el tipo de marcado que Google castiga. Se
+  agrega cuando exista la búsqueda — y vale la pena: es la caja de búsqueda dentro
+  del propio resultado de Google.
+- **`AggregateOffer` cuando las variantes tienen precios distintos.** Tres de los
+  ocho productos están en ese caso. Declarar un precio único haría que el resultado
+  de búsqueda muestre un valor que el visitante después no encuentra en la página.
+
+Faltan, a propósito, `priceValidUntil`, `shippingDetails` y `hasMerchantReturnPolicy`:
+Google los recomienda, pero hoy no hay con qué completarlos sin inventar. Los dos
+últimos se destraban justo con lo que ya está en agenda — la página de cambios y
+devoluciones (entrega 2) y la cotización de envíos (ver `plan-modo-y-envios.md`).
+Tampoco hay `aggregateRating` ni `review`: no existen reseñas, y fabricarlas puede
+costar los resultados enriquecidos del sitio entero.
+
+> **Nota de seguridad, que no es opcional.** `JSON.stringify` no escapa nada y el
+> nombre y la descripción de un producto los edita el admin: un `</script>` metido
+> ahí cerraría la etiqueta y lo que siguiera correría como HTML. `JsonLd` reemplaza
+> `<` por `<`, que lo neutraliza sin cambiar el valor que lee el buscador. Si
+> alguien toca ese componente, esa línea se queda.
+
+### Fase 3 — Arquitectura de URLs — ✅ hecha
+
+> Implementado en `src/app/(store)/productos/categoria/[slug]/page.tsx`, con
+> `generateStaticParams` sobre las categorías. Cada una tiene ahora su `h1`, su
+> texto introductorio, su metadata y su `BreadcrumbList`.
+>
+> - **El parámetro sigue vivo pero ya no lo enlaza nadie.** `/productos?categoria=x`
+>   filtra igual —no se rompen URLs compartidas, favoritos ni lo que los buscadores
+>   ya indexaron— pero canoniza a la ruta limpia. Todos los enlaces internos
+>   (header, mega-menú, menú móvil, carrusel del inicio, chips y migas de la ficha
+>   de producto) apuntan a la ruta real: una categoría enlazada de dos formas
+>   reparte su propio peso entre las dos.
+> - **El sitemap lista las rutas limpias**, no las del parámetro. Declarar en el
+>   sitemap una URL que canoniza a otra manda señales contradictorias.
+> - **Si en algún momento se prefiere cortar por lo sano**, el paso siguiente es
+>   redirigir `?categoria=` a la ruta limpia con un 308 en vez de canonizar. Es más
+>   fuerte —consolida al instante en vez de pedirle a Google que respete la
+>   canónica— y hoy no se perdería nada, porque no hay otros filtros. Se dejó la
+>   canónica porque el plan preveía filtros combinados sobre el listado.
+> - **Los textos introductorios los redacté yo** a partir del catálogo, en
+>   `src/lib/category-copy.ts`. Son descriptivos y no prometen plazos, precios ni
+>   materiales que no estén ya en las fichas, pero **hay que revisarlos**: es la voz
+>   de la marca la que habla ahí. Viven en código siguiendo el criterio de la
+>   sección 3 (código para lo que cambia poco); si se quieren editar sin deploy, el
+>   movimiento es pasarlos a `Category.description`.
+
+### El diagnóstico original
 
 **Las categorías hoy son un parámetro: `/productos?categoria=mesas-y-sillas`.**
 
@@ -263,13 +442,13 @@ Nada de lo anterior se puede evaluar sin esto:
 
 | # | Entrega | Depende de | Tamaño |
 |---|---|---|---|
-| 1 | Arreglo del desplegable + accesibilidad | — | Chico |
-| 2 | Las cinco páginas de contenido (maqueta + textos de ustedes) | Contenido del negocio | Mediano |
-| 3 | SEO fase 1 (metadataBase, robots, sitemap, metadata por producto) | 2, para que el sitemap no liste 404 | Mediano |
-| 4 | Mega-menú con contenido | 2, para tener adónde enlazar | Mediano |
-| 5 | SEO fase 2 (JSON-LD) | 3 | Chico |
-| 6 | Rutas reales de categoría | 4 | Mediano |
-| 7 | Novedades (modelo, ABM, listado, ficha) | — | **Grande, entrega propia** |
+| ~~1~~ | ~~Arreglo del desplegable + accesibilidad~~ ✅ | — | Chico |
+| ~~2~~ | ~~Las cinco páginas de contenido~~ ✅ (textos pendientes de revisión) | Contenido del negocio | Mediano |
+| ~~3~~ | ~~SEO fase 1~~ ✅ (se adelantó a la 2: el sitemap simplemente no lista lo que todavía no existe) | — | Mediano |
+| ~~4~~ | ~~Mega-menú con contenido~~ ✅ | 2 | Mediano |
+| ~~5~~ | ~~SEO fase 2 (JSON-LD)~~ ✅ completa, `FAQPage` incluido | 3 | Chico |
+| ~~6~~ | ~~Rutas reales de categoría~~ ✅ (no hizo falta esperar a la 4) | 4 | Mediano |
+| ~~7~~ | ~~Novedades (modelo, ABM, listado, ficha)~~ ✅ | — | **Grande, entrega propia** |
 | 8 | SEO fases 4 y 5 (auditoría, CWV, Search Console) | Todo lo anterior | Continuo |
 
 El arreglo del desplegable (#1) se puede hacer ya mismo y por separado: no depende de

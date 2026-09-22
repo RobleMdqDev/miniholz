@@ -1,11 +1,47 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCategories, getProducts } from "@/lib/catalog";
-import { ProductCard } from "@/components/product/ProductCard";
+import { SITE_NAME, socialMetadata } from "@/lib/site";
+import { CategoryFilters } from "@/components/product/CategoryFilters";
+import { ProductGrid } from "@/components/product/ProductGrid";
 
-export const metadata: Metadata = {
-  title: "Tienda online",
-};
+/**
+ * El listado completo, y de paso el destino de los enlaces viejos con
+ * `?categoria=`.
+ *
+ * Ese parámetro ya no lo usa ningún enlace interno —todos apuntan a
+ * `/productos/categoria/<slug>`—, pero sigue filtrando para no romper lo que
+ * quedó afuera: URLs compartidas, favoritos y lo que los buscadores ya
+ * indexaron. Lo que sí cambia es la canónica: apunta a la ruta limpia, así el
+ * peso se consolida ahí y las dos URLs dejan de competir.
+ */
+export async function generateMetadata(props: PageProps<"/productos">): Promise<Metadata> {
+  const { categoria } = await props.searchParams;
+  const categorySlug = typeof categoria === "string" ? categoria : undefined;
+  const category = categorySlug
+    ? (await getCategories()).find((item) => item.slug === categorySlug)
+    : undefined;
+
+  // Un filtro que no existe (`?categoria=cualquiera`) se comporta como el
+  // listado completo, así que un parámetro inventado no genera una URL nueva.
+  if (!category) {
+    const description = `Toda la tienda de ${SITE_NAME}: accesorios de madera y mesas infantiles personalizadas, con grabado de nombre. Envíos a todo el país.`;
+    return {
+      title: "Tienda online",
+      description,
+      alternates: { canonical: "/productos" },
+      ...socialMetadata({ title: "Tienda online", description, url: "/productos" }),
+    };
+  }
+
+  // Con categoría, la página es un duplicado de la ruta real: se canoniza allá
+  // y no se declara nada más. El marcado de migas de pan y la metadata social
+  // propios viven en la ruta limpia, que es la que se quiere posicionar.
+  return {
+    title: category.name,
+    alternates: { canonical: `/productos/categoria/${category.slug}` },
+  };
+}
 
 export default async function ProductsPage(props: PageProps<"/productos">) {
   const { categoria } = await props.searchParams;
@@ -20,6 +56,16 @@ export default async function ProductsPage(props: PageProps<"/productos">) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
+      {activeCategory && (
+        <nav className="mb-4 text-xs text-brand-600" aria-label="Migas de pan">
+          <Link href="/productos" className="hover:text-gold-700">
+            Tienda
+          </Link>
+          {" / "}
+          <span className="text-brand-900">{activeCategory.name}</span>
+        </nav>
+      )}
+
       <h1 className="mb-1 text-2xl font-extrabold text-brand-900">
         {activeCategory ? activeCategory.name : "Tienda online"}
       </h1>
@@ -27,48 +73,9 @@ export default async function ProductsPage(props: PageProps<"/productos">) {
         {products.length === 1 ? "1 producto" : `${products.length} productos`}
       </p>
 
-      <nav className="mb-8 flex flex-wrap gap-2" aria-label="Filtrar por categoría">
-        <FilterChip href="/productos" label="Todos" active={!categorySlug} />
-        {categories.map((category) => (
-          <FilterChip
-            key={category.slug}
-            href={`/productos?categoria=${category.slug}`}
-            label={category.name}
-            active={category.slug === categorySlug}
-          />
-        ))}
-      </nav>
+      <CategoryFilters categories={categories} activeSlug={activeCategory?.slug} />
 
-      {products.length === 0 ? (
-        <p className="rounded-2xl border border-brand-200 bg-white p-8 text-center text-sm text-brand-600">
-          Todavía no hay productos en esta categoría.{" "}
-          <Link href="/productos" className="font-bold text-gold-700 hover:underline">
-            Ver todos
-          </Link>
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      )}
+      <ProductGrid products={products} />
     </div>
-  );
-}
-
-function FilterChip({ href, label, active }: { href: string; label: string; active: boolean }) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={
-        active
-          ? "rounded-full bg-brand-900 px-4 py-2 text-sm font-semibold text-white"
-          : "rounded-full border border-brand-200 bg-white px-4 py-2 text-sm font-medium text-brand-700 transition hover:border-gold-400 hover:text-gold-700"
-      }
-    >
-      {label}
-    </Link>
   );
 }

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Truck, CreditCard, Percent } from "lucide-react";
 import { getActiveProductSlugs, getProductBySlug } from "@/lib/catalog";
+import { metaDescription, socialMetadata } from "@/lib/site";
+import { breadcrumbJsonLd, productJsonLd, type BreadcrumbStep } from "@/lib/json-ld";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductPurchasePanel } from "@/components/product/ProductPurchasePanel";
 
@@ -14,11 +17,21 @@ export async function generateStaticParams() {
 export async function generateMetadata(props: PageProps<"/productos/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
   const product = await getProductBySlug(slug);
-  if (!product) return { title: "Producto no encontrado" };
+  // Un slug que no existe termina en 404: que no se indexe ni se comparta.
+  if (!product) return { title: "Producto no encontrado", robots: { index: false } };
+
+  const description = metaDescription(product.description);
+  const image = product.images[0];
+  const canonical = `/productos/${product.slug}`;
 
   return {
     title: product.name,
-    description: product.description.slice(0, 160),
+    description,
+    alternates: { canonical },
+    // La foto del producto dice mucho más que el logo al compartir el link.
+    // Puede ser relativa o del Blob store: `metadataBase` resuelve la primera y
+    // deja pasar la segunda.
+    ...socialMetadata({ title: product.name, description, url: canonical, image }),
   };
 }
 
@@ -27,8 +40,21 @@ export default async function ProductDetailPage(props: PageProps<"/productos/[sl
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
+  // Los mismos escalones que muestra el `<nav>` de abajo, más el producto: el
+  // marcado de migas de pan tiene que describir lo que el visitante ve.
+  const breadcrumb: BreadcrumbStep[] = [
+    { name: "Tienda", path: "/productos" },
+    ...(product.category
+      ? [{ name: product.category.name, path: `/productos/categoria/${product.category.slug}` }]
+      : []),
+    { name: product.name, path: `/productos/${product.slug}` },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
+      <JsonLd data={productJsonLd(product)} />
+      <JsonLd data={breadcrumbJsonLd(breadcrumb)} />
+
       <nav className="mb-6 text-xs text-brand-600" aria-label="Migas de pan">
         <Link href="/productos" className="hover:text-gold-700">
           Tienda
@@ -37,7 +63,7 @@ export default async function ProductDetailPage(props: PageProps<"/productos/[sl
           <>
             {" / "}
             <Link
-              href={`/productos?categoria=${product.category.slug}`}
+              href={`/productos/categoria/${product.category.slug}`}
               className="hover:text-gold-700"
             >
               {product.category.name}
