@@ -419,14 +419,32 @@ es la diferencia entre tener cinco páginas que pueden posicionar y no tener nin
 - **Textos con intención de búsqueda** en las categorías. Sin texto propio, una página
   de categoría es una grilla de imágenes que no le dice nada a Google.
 
-### Fase 5 — Medición, que es de ustedes
+### Fase 5 — Medición — 🔶 en curso
 
 Nada de lo anterior se puede evaluar sin esto:
 
-1. Alta en **Google Search Console** y verificación del dominio.
-2. Enviar el sitemap.
-3. Alta en **Google Business Profile** si hay atención presencial o retiro.
-4. Opcional: Vercel Analytics y Speed Insights.
+1. ✅ **Google Search Console**: propiedad de Dominio verificada por TXT el 2026-09-22.
+   El registro vive en la zona DNS de DonWeb y **no hay que borrarlo**: Google revalida
+   cada tanto y si desaparece se pierde la propiedad.
+2. ⏸️ **Enviar el sitemap — a propósito todavía no.** El sitio está en `noindex` hasta
+   aprobar los textos; mandarlo ahora solo llena Search Console de avisos de "URL
+   enviada marcada como noindex". Va junto con encender `SITE_INDEXABLE`.
+3. ⏳ Alta en **Google Business Profile** si hay atención presencial o retiro.
+4. ⏳ Opcional: Vercel Analytics y Speed Insights.
+
+#### El dominio, que era el bloqueante — ✅ resuelto
+
+`www.miniholz.com.ar` en producción, con el apex y el HTTP redirigiendo 308 a él y
+certificado de Let's Encrypt con renovación automática. El DNS quedó en DonWeb —
+nameservers propios y zona con un `CNAME` para `www` y un `A` para el apex—, así que
+el correo del dominio no dependió de este cambio.
+
+Del lado de la app no hubo nada que tocar salvo `NEXT_PUBLIC_BASE_URL`: canónicas,
+sitemap, robots y OpenGraph salen todos de esa variable.
+
+> ⚠️ **Pendiente detectado al migrar:** la zona no tiene registros `MX`, así que hoy
+> `info@miniholz.com.ar` —la dirección que publican el pie y la página de Contacto— no
+> recibe correo. Hay que revisarlo.
 
 > **Un aviso honesto sobre expectativas.** "Primeras posiciones en los buscadores" no es
 > algo que se consiga con cambios técnicos. Lo técnico saca los obstáculos —y acá hay
@@ -449,7 +467,7 @@ Nada de lo anterior se puede evaluar sin esto:
 | ~~5~~ | ~~SEO fase 2 (JSON-LD)~~ ✅ completa, `FAQPage` incluido | 3 | Chico |
 | ~~6~~ | ~~Rutas reales de categoría~~ ✅ (no hizo falta esperar a la 4) | 4 | Mediano |
 | ~~7~~ | ~~Novedades (modelo, ABM, listado, ficha)~~ ✅ | — | **Grande, entrega propia** |
-| 8 | SEO fases 4 y 5 (auditoría, CWV, Search Console) | Todo lo anterior | Continuo |
+| 8 | SEO fases 4 y 5 | Todo lo anterior | Continuo — Search Console ✅, falta la auditoría de fase 4 |
 
 El arreglo del desplegable (#1) se puede hacer ya mismo y por separado: no depende de
 ninguna decisión.
