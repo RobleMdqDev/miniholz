@@ -15,20 +15,20 @@ contenido que faltan, y empezar una política de SEO.
 |---|---|---|
 | 1 | Arreglo del desplegable + accesibilidad | ✅ hecho |
 | 3 | SEO fase 1 (metadataBase, robots, sitemap, metadata por página) | ✅ hecho |
-| 5 | SEO fase 2 (JSON-LD) | ✅ hecho, salvo `FAQPage` |
+| 5 | SEO fase 2 (JSON-LD) | ✅ hecho, `FAQPage` incluido |
 | 6 | Rutas reales de categoría | ✅ hecho |
 | 7 | Novedades | ✅ hecho |
-| 2 | Páginas de contenido | ⛔ bloqueado: faltan los textos del negocio |
-| 4 | Mega-menú con contenido | ⏳ depende de 2 |
+| 2 | Páginas de contenido | ✅ hecho (textos pendientes de revisión) |
+| 4 | Mega-menú con contenido | ⏳ pendiente, ya no está bloqueado |
 | 8 | SEO fases 4 y 5 | ⏳ pendiente |
 
-De las seis rutas en 404 de la sección 0, `/novedades` ya existe. **Las otras cinco
-siguen en 404**: crearlas es la entrega 2 y necesita contenido real, así que el
-sitemap todavía no las lista.
+**Las seis rutas en 404 de la sección 0 ya no existen como tales**: las seis
+responden 200 y están en el sitemap. Un recorrido por todos los enlaces internos
+del sitio no encuentra ninguno roto.
 
 ---
 
-## 0. Hallazgo previo: cinco páginas enlazadas no existen
+## 0. Hallazgo previo: cinco páginas enlazadas no existen — ✅ resuelto
 
 Antes que nada, esto:
 
@@ -168,7 +168,38 @@ Seis rutas nuevas bajo `src/app/(store)/`.
 | `/ayuda` | Preguntas frecuentes |
 | `/novedades` + `/novedades/[slug]` | Notas y novedades |
 
-### Dos decisiones que hay que tomar antes de escribir una línea
+### Cómo quedó — ✅ hecho
+
+> Las cinco páginas existen, más `/novedades`. Se resolvió así:
+>
+> - **La ruta es `/cambios-y-devoluciones`**, no `/politica-de-cambios-y-devoluciones`:
+>   era la que ya enlazaba el pie, y es también la que usa la referencia del rubro.
+> - **El contenido está en código**, como recomendaba esta misma sección. Los datos
+>   operativos que se repiten en varias páginas (plazo de producción, plazos legales)
+>   viven en `src/lib/store-facts.ts` para que no queden tres versiones distintas.
+> - **La mayor parte no es relleno.** Medios de pago, cuotas, descuento por
+>   transferencia, cómo funciona el envío, la personalización, el alta como invitado
+>   y el seguimiento del pedido salen de cómo está construida la app; el descuento y
+>   las cuotas se leen de `pricing.ts`, así que el texto no puede desincronizarse del
+>   código. Los plazos, la zona de envío y el criterio de devoluciones los definió el
+>   cliente.
+> - **Lo que sigue siendo provisorio está marcado en la propia página** con un aviso
+>   visible (`TextoProvisorio`), no en un comentario: la historia del taller, los
+>   horarios de atención y los enlaces a redes. Se borra una línea por página cuando
+>   el texto esté aprobado.
+> - **El formulario de contacto arma el mensaje y lo abre en WhatsApp**, no lo manda
+>   por mail: sin un proveedor de correo configurado, lo único que se podía construir
+>   era un formulario que traga los mensajes en silencio.
+> - **Botón de arrepentimiento** en el pie de toda la tienda, como pide la Resolución
+>   424/2020, apuntando a `/contacto#arrepentimiento`.
+> - **`FAQPage`** (el pendiente de la fase 2) sale de las mismas preguntas que se ven
+>   en `/ayuda`, desde una sola fuente.
+>
+> ⚠️ **La política de cambios y devoluciones tiene efectos legales y sigue sin
+> revisión profesional.** Los plazos respetan la Ley 24.240, pero conviene que la lea
+> alguien con criterio legal antes de publicarla.
+
+### Las decisiones que había que tomar antes de escribir una línea
 
 **Quién es dueño del contenido: ¿código o base de datos?**
 
@@ -281,7 +312,7 @@ Los objetos viven en `src/lib/json-ld.ts` y los renderiza `src/components/seo/Js
 | `WebSite` | layout de la tienda | ✅ **sin** `SearchAction` (ver abajo) |
 | `Product` + `Offer` / `AggregateOffer` | ficha de producto | ✅ |
 | `BreadcrumbList` | producto y categoría | ✅ |
-| `FAQPage` | ayuda y cómo comprar | ⛔ depende de la entrega 2 |
+| `FAQPage` | `/ayuda` | ✅ |
 
 Tres decisiones que conviene no revertir sin pensarlas:
 
@@ -385,10 +416,10 @@ Nada de lo anterior se puede evaluar sin esto:
 | # | Entrega | Depende de | Tamaño |
 |---|---|---|---|
 | ~~1~~ | ~~Arreglo del desplegable + accesibilidad~~ ✅ | — | Chico |
-| 2 | Las cinco páginas de contenido (maqueta + textos de ustedes) | Contenido del negocio | Mediano |
+| ~~2~~ | ~~Las cinco páginas de contenido~~ ✅ (textos pendientes de revisión) | Contenido del negocio | Mediano |
 | ~~3~~ | ~~SEO fase 1~~ ✅ (se adelantó a la 2: el sitemap simplemente no lista lo que todavía no existe) | — | Mediano |
-| 4 | Mega-menú con contenido | 2, para tener adónde enlazar | Mediano |
-| ~~5~~ | ~~SEO fase 2 (JSON-LD)~~ ✅ salvo `FAQPage`, que depende de la 2 | 3 | Chico |
+| 4 | Mega-menú con contenido | ~~2~~ — ya no está bloqueado | Mediano |
+| ~~5~~ | ~~SEO fase 2 (JSON-LD)~~ ✅ completa, `FAQPage` incluido | 3 | Chico |
 | ~~6~~ | ~~Rutas reales de categoría~~ ✅ (no hizo falta esperar a la 4) | 4 | Mediano |
 | ~~7~~ | ~~Novedades (modelo, ABM, listado, ficha)~~ ✅ | — | **Grande, entrega propia** |
 | 8 | SEO fases 4 y 5 (auditoría, CWV, Search Console) | Todo lo anterior | Continuo |

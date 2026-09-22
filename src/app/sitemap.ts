@@ -19,14 +19,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     getPublishedPostRoutes(),
   ]);
 
-  // Solo van rutas que existen. Las páginas de contenido (/quienes-somos,
-  // /como-comprar, /contacto, /ayuda y la de cambios y devoluciones) todavía
-  // responden 404 y se suman acá recién cuando existan: un sitemap que declara
-  // 404 es peor que no tenerlo.
   const staticPages: MetadataRoute.Sitemap = [
     { url: base, changeFrequency: "weekly", priority: 1 },
     { url: `${base}/productos`, changeFrequency: "weekly", priority: 0.9 },
     { url: `${base}/novedades`, changeFrequency: "weekly", priority: 0.8 },
+    // Las páginas de contenido cambian poco, pero son las que explican cómo
+    // comprar y qué pasa con un cambio: conviene que estén indexadas.
+    { url: `${base}/quienes-somos`, changeFrequency: "yearly", priority: 0.5 },
+    { url: `${base}/como-comprar`, changeFrequency: "yearly", priority: 0.6 },
+    { url: `${base}/ayuda`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/cambios-y-devoluciones`, changeFrequency: "yearly", priority: 0.5 },
+    { url: `${base}/contacto`, changeFrequency: "yearly", priority: 0.5 },
   ];
 
   // Solo las publicadas: `getPublishedPostRoutes` ya filtra borradores y notas

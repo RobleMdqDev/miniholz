@@ -98,6 +98,23 @@ export function blogPostingJsonLd(post: {
   };
 }
 
+/**
+ * Preguntas frecuentes. Google puede mostrarlas desplegables dentro del propio
+ * resultado. Se arma desde la misma fuente que la página (`@/lib/faq`): el
+ * marcado que no coincide con lo visible es marcado inválido.
+ */
+export function faqPageJsonLd(entries: { question: string; answer: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: entries.map((entry) => ({
+      "@type": "Question",
+      name: entry.question,
+      acceptedAnswer: { "@type": "Answer", text: entry.answer },
+    })),
+  };
+}
+
 /** Un escalón de las migas de pan: el nombre visible y su ruta. */
 export type BreadcrumbStep = { name: string; path: string };
 

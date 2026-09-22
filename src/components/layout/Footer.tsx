@@ -9,6 +9,7 @@ const FOOTER_LINKS = [
   { href: "/quienes-somos", label: "Quiénes Somos" },
   { href: "/como-comprar", label: "Cómo Comprar" },
   { href: "/cambios-y-devoluciones", label: "Política de cambios y devoluciones" },
+  { href: "/ayuda", label: "Ayuda" },
   { href: "/contacto", label: "Contacto" },
 ];
 
@@ -58,6 +59,14 @@ export function Footer() {
       </div>
 
       <div className="border-t border-brand-100/20 px-4 py-4 text-center text-xs">
+        {/* La Resolución 424/2020 pide que el botón de arrepentimiento esté a la
+            vista y sea fácil de encontrar, no escondido dentro de la política. */}
+        <Link
+          href="/contacto#arrepentimiento"
+          className="mb-3 inline-block rounded-full border border-brand-100/40 px-4 py-2 font-semibold transition hover:bg-brand-100/10"
+        >
+          Botón de arrepentimiento
+        </Link>
         <p className="mb-1 font-medium italic">Pequeñas creaciones, grandes alegrías</p>
         <p>Copyright MiniHolz - {new Date().getFullYear()}. Todos los derechos reservados.</p>
       </div>
