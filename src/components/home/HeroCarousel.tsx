@@ -47,9 +47,25 @@ const SLIDES: Slide[] = [
 ];
 
 export function HeroCarousel() {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
-    Autoplay({ delay: 5000, stopOnInteraction: false }),
-  ]);
+  // Respetar "reducir movimiento" del sistema: para quien lo activó, un carrusel
+  // que se mueve solo no es un detalle estético sino un problema de accesibilidad
+  // —y en algunos casos, de mareo—. Se lee una sola vez porque Embla fija sus
+  // plugins al inicializar.
+  const [prefersReducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    { loop: true },
+    prefersReducedMotion
+      ? []
+      : // `stopOnInteraction: true`: si alguien toca una flecha o un punto, es
+        // porque quiere leer *esa* diapositiva. Seguir rotando por debajo se la
+        // saca de la pantalla mientras la está leyendo.
+        [Autoplay({ delay: 5000, stopOnInteraction: true })],
+  );
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const scrollTo = useCallback((index: number) => emblaApi?.scrollTo(index), [emblaApi]);

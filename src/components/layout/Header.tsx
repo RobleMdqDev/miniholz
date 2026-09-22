@@ -55,7 +55,10 @@ export function Header({
           <Link href="/" aria-label="MiniHolz — inicio" className="shrink-0">
             <Image
               src="/images/logo-circular.png"
-              alt="MiniHolz"
+              // El enlace ya se anuncia como "MiniHolz — inicio" por su
+              // aria-label; repetirlo en el alt hace que un lector de pantalla
+              // diga la marca dos veces seguidas.
+              alt=""
               width={512}
               height={512}
               priority
