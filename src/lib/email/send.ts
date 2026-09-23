@@ -21,7 +21,42 @@ import {
  *    clave, el cliente recibe el mismo aviso tres veces. Resend la respeta
  *    durante 24 horas: mismo `idempotencyKey` con el mismo contenido devuelve la
  *    respuesta original sin volver a enviar.
+ * 3. **Fuera de producción no le escribe a nadie de verdad.** Ver
+ *    `resolveRecipient`.
  */
+
+/**
+ * A quién se le manda realmente.
+ *
+ * La clave de Resend está en los tres entornos, así que probar una compra desde
+ * una máquina de desarrollo o desde un preview alcanzaría para mandarle un
+ * correo real a la dirección que se haya tipeado — que puede ser la de un
+ * cliente. Por eso solo producción le escribe al destinatario de verdad.
+ *
+ * En cualquier otro entorno el mensaje se desvía a la casilla interna y el
+ * asunto lo dice, para que nadie confunda una prueba con un envío real. Si no
+ * hay casilla interna configurada no se manda nada: quedarse sin la prueba es
+ * preferible a escribirle a un cliente desde un entorno que no es el productivo.
+ *
+ * El entorno entra además en la clave de idempotencia. Sin eso habría un
+ * problema silencioso: desarrollo y producción comparten la misma base, así que
+ * el pedido `X` tiene el mismo id en los dos. Una prueba local de
+ * `pedido-confirmado/X` dejaría esa clave usada, y el envío real de las
+ * siguientes 24 horas volvería con un 409 en vez de llegarle al cliente.
+ */
+function resolveRecipient(
+  to: string,
+): { to: string; subjectPrefix: string; keyPrefix: string } | null {
+  if (process.env.VERCEL_ENV === "production") {
+    return { to, subjectPrefix: "", keyPrefix: "" };
+  }
+
+  const entorno = process.env.VERCEL_ENV ?? "local";
+  const desvio = adminAddress();
+  if (!desvio) return null;
+
+  return { to: desvio, subjectPrefix: `[${entorno} → ${to}] `, keyPrefix: `${entorno}-` };
+}
 
 export type SendResult = { sent: boolean; id?: string; reason?: string };
 
@@ -44,6 +79,12 @@ export async function sendEmail(input: SendInput): Promise<SendResult> {
     return { sent: false, reason: "no_recipient" };
   }
 
+  const destino = resolveRecipient(input.to);
+  if (!destino) {
+    console.info(`[email] omitido fuera de producción: "${input.subject}" para ${input.to}`);
+    return { sent: false, reason: "non_production_no_redirect" };
+  }
+
   const isAdmin = input.audience === "admin";
 
   try {
@@ -53,13 +94,13 @@ export async function sendEmail(input: SendInput): Promise<SendResult> {
     const { data, error } = await resendClient().emails.send(
       {
         from: isAdmin ? adminFromAddress() : fromAddress(),
-        to: [input.to],
-        subject: input.subject,
+        to: [destino.to],
+        subject: `${destino.subjectPrefix}${input.subject}`,
         html: input.html,
         text: input.text,
         ...(replyToAddress() ? { replyTo: replyToAddress() } : {}),
       },
-      { idempotencyKey: input.idempotencyKey },
+      { idempotencyKey: `${destino.keyPrefix}${input.idempotencyKey}` },
     );
 
     if (error) {
