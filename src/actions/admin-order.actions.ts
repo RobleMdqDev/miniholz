@@ -9,6 +9,7 @@ import { pesosToCents } from "@/lib/pricing";
 import { MANUAL_ORDER_STATUSES } from "@/lib/order-labels";
 import { recordOrderEvent } from "@/lib/order-events";
 import { formatCurrencyFromCents } from "@/lib/format";
+import { notifyOrderShipped, notifyShippingQuoted } from "@/lib/email/notify";
 
 const statusSchema = z.enum(MANUAL_ORDER_STATUSES);
 const shippingCostSchema = z
@@ -80,6 +81,7 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
   });
 
   revalidateOrder(orderId);
+  if (nextStatus === "SHIPPED" && order.status !== "SHIPPED") void notifyOrderShipped(orderId);
   return { ok: true, message: "Estado actualizado." };
 }
 
@@ -174,5 +176,8 @@ export async function setOrderShippingCost(
   });
 
   revalidateOrder(orderId);
+  // El aviso que hoy no existía: el sitio promete pasar el costo antes de
+  // despachar y no había ningún canal que lo hiciera.
+  void notifyShippingQuoted(orderId);
   return { ok: true, message: "Costo de envío actualizado." };
 }

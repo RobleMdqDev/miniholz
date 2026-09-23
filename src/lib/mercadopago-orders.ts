@@ -2,6 +2,7 @@ import type { OrderStatus, PaymentStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { parseShippingAddress } from "@/lib/orders";
 import { recordOrderEvent, type OrderEventActor } from "@/lib/order-events";
+import { notifyPaymentApproved } from "@/lib/email/notify";
 import {
   createOrderPreference,
   getMercadoPagoPayment,
@@ -239,6 +240,14 @@ export async function syncMercadoPagoPayment(
   });
 
   if (!applied) return { ok: false, reason: "order_not_found" };
+
+  // Solo cuando el pedido *pasó* a pagado en esta pasada. La sincronización
+  // corre desde el webhook y desde la vuelta del checkout, y Mercado Pago avisa
+  // varias veces por el mismo pago: sin esta condición el comprador recibiría
+  // el aviso de acreditación una vez por notificación.
+  if (applied.status === "PAID" && applied.paymentStatus === "APPROVED") {
+    void notifyPaymentApproved(order.id);
+  }
 
   return {
     ok: true,

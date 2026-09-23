@@ -13,6 +13,7 @@ import {
 import { serializeShippingAddress } from "@/lib/orders";
 import { isMercadoPagoEnabled } from "@/lib/mercadopago";
 import { recordOrderEvent } from "@/lib/order-events";
+import { notifyOrderCreated } from "@/lib/email/notify";
 
 export type CreateOrderResult =
   | { ok: true; orderId: string; orderNumber: number; paymentMethod: CheckoutPaymentMethod }
@@ -127,6 +128,11 @@ export async function createOrder(
         // El carrito guardado ya se convirtió en pedido.
         await prisma.cartItem.deleteMany({ where: { cart: { userId: session.user.id } } });
       }
+
+      // Después de la transacción y sin await: el pedido ya está confirmado y
+      // el comprador no tiene que esperar a que salga un correo para ver su
+      // pantalla. Si el envío falla, queda en el log y la compra sigue en pie.
+      void notifyOrderCreated(order.id);
 
       return { ok: true, orderId: order.id, orderNumber: order.orderNumber, paymentMethod };
     } catch (error) {
