@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canViewOrder } from "@/lib/orders";
 import { maxUploadBytes, RECEIPT_ALLOWED_TYPES, storage } from "@/lib/storage";
+import { sendAdminReceiptUploaded } from "@/lib/email/orders";
 
 /** Subida del comprobante de transferencia. Va por API route y no por Server
  * Action porque recibe un archivo y necesita responder con la url resultante. */
@@ -11,7 +12,14 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/orders/
 
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { id: true, userId: true, paymentMethod: true, transferReceiptUrl: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      total: true,
+      userId: true,
+      paymentMethod: true,
+      transferReceiptUrl: true,
+    },
   });
   if (!order) {
     return Response.json({ error: "El pedido no existe." }, { status: 404 });
@@ -61,6 +69,16 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/orders/
     where: { id: order.id },
     data: { transferReceiptUrl: saved.url },
   });
+
+  // Sin este aviso, un comprobante puede quedar días sin que nadie lo mire: no
+  // hay nada en el panel que se encienda solo. No se espera el envío ni se
+  // deja que falle la subida por su culpa.
+  void sendAdminReceiptUploaded({
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    total: order.total,
+    receiptUrl: saved.url,
+  }).catch((cause) => console.error("[email] falló el aviso de comprobante", cause));
 
   return Response.json({ url: saved.url });
 }
